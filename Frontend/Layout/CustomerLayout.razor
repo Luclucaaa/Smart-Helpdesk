@@ -1,0 +1,162 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+
+<div class="customer-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <div class="brand-text">
+                <span class="brand-name">Smart Helpdesk</span>
+                <span class="brand-tagline">Cổng hỗ trợ thông minh</span>
+            </div>
+        </div>
+        
+        <div class="nav-section-title">MENU</div>
+        <nav class="sidebar-nav">
+            <NavLink href="/customer" class="nav-item" Match="NavLinkMatch.All">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span>Trang chủ</span>
+            </NavLink>
+            
+            <NavLink href="/customer/create-ticket" class="nav-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+                <span>Gửi yêu cầu</span>
+            </NavLink>
+            
+            <NavLink href="/customer/my-tickets" class="nav-item">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <span>Yêu cầu của tôi</span>
+            </NavLink>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <div class="avatar">
+                    <span class="avatar-text">@GetInitials()</span>
+                </div>
+                <div class="user-details">
+                    <span class="user-name">@userName</span>
+                    <span class="user-role">Khách hàng</span>
+                </div>
+                <a href="/login" class="logout-btn" title="Đăng xuất">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </a>
+            </div>
+        </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-header">
+            <h1 class="page-title">Cổng hỗ trợ khách hàng</h1>
+        </header>
+        
+        <div class="content-wrapper">
+            @Body
+        </div>
+    </main>
+</div>
+
+@code {
+    private string userName = "Khách hàng";
+    private string userSurname = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserInfo();
+    }
+
+    private async Task LoadUserInfo()
+    {
+        try
+        {
+            // TODO: Load from API using stored token
+            // For now, try to get from localStorage
+            var name = await JS.InvokeAsync<string>("localStorage.getItem", "userName");
+            var surname = await JS.InvokeAsync<string>("localStorage.getItem", "userSurname");
+            
+            if (!string.IsNullOrEmpty(surname) && !string.IsNullOrEmpty(name))
+            {
+                userName = $"{name} {surname}";
+            }
+            else if (!string.IsNullOrEmpty(surname))
+            {
+                userName = surname;
+            }
+            else if (!string.IsNullOrEmpty(name))
+            {
+                userName = name;
+            }
+        }
+        catch
+        {
+            // Fallback to default
+            userName = "Khách hàng";
+        }
+    }
+
+    private string GetInitials()
+    {
+        if (string.IsNullOrEmpty(userName) || userName == "Khách hàng")
+            return "KH";
+        
+        var parts = userName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+        
+        return userName.Length >= 2 ? userName.Substring(0, 2).ToUpper() : userName.ToUpper();
+    }
+}
+
+<style>
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        color: rgba(255, 255, 255, 0.75);
+        text-decoration: none;
+        border-radius: 14px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+        font-size: 0.95rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.05);
+        margin-bottom: 6px;
+    }
+
+    .nav-item:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #fff;
+        transform: translateX(4px);
+    }
+
+    .nav-item.active {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.5) 0%, rgba(118, 75, 162, 0.5) 100%);
+        border-color: rgba(255, 255, 255, 0.25);
+        color: #fff;
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4);
+    }
+</style>

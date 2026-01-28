@@ -1,0 +1,20 @@
+@page "/dashboard"
+@inject NavigationManager Navigation
+
+<PageTitle>Trang chủ - Smart Helpdesk</PageTitle>
+
+<div class="dashboard-container">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <p>Đang chuyển hướng...</p>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // TODO: Check user role and redirect accordingly
+        // For now, redirect to Customer Portal
+        Navigation.NavigateTo("/customer", forceLoad: true);
+    }
+}

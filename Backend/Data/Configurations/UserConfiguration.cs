@@ -15,6 +15,15 @@ namespace SmartHelpdesk.Data.Configurations
             builder.Property(user => user.Surname)
                 .HasMaxLength(100)
                 .IsRequired();
+            
+            // Bỏ các cột không cần thiết của Identity
+            builder.Ignore(user => user.EmailConfirmed);
+            builder.Ignore(user => user.PhoneNumberConfirmed);
+            builder.Ignore(user => user.TwoFactorEnabled);
+            builder.Ignore(user => user.LockoutEnd);
+            builder.Ignore(user => user.LockoutEnabled);
+            builder.Ignore(user => user.AccessFailedCount);
+            
             builder.HasMany(user => user.CreatedTickets)
                  .WithOne(ticket => ticket.User)
                  .HasForeignKey(ticket => ticket.UserId)

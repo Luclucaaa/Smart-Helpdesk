@@ -66,12 +66,37 @@ namespace SmartHelpdesk.Controllers
             if (user != null && await _userManager.CheckPasswordAsync(user, userLoginDTO.Password))
             {
 
-                var token = _tokenService.GenerateJwtToken(user);
-                return Ok(new { token = token.Result });
+                var token = await _tokenService.GenerateJwtToken(user);
+                return Ok(new { 
+                    token = token, 
+                    name = user.Name,
+                    surname = user.Surname
+                });
             }
             return Unauthorized();
         }
 
+        /// <summary>
+        /// Gán role Customer cho tất cả user chưa có role (chỉ dùng 1 lần để fix dữ liệu)
+        /// </summary>
+        [HttpPost("FixUserRoles")]
+        public async Task<IActionResult> FixUserRoles()
+        {
+            var users = _userManager.Users.ToList();
+            int fixedCount = 0;
+            
+            foreach (var user in users)
+            {
+                var roles = await _userManager.GetRolesAsync(user);
+                if (roles.Count == 0)
+                {
+                    await _userManager.AddToRoleAsync(user, "Customer");
+                    fixedCount++;
+                }
+            }
+            
+            return Ok(new { message = $"Đã gán role Customer cho {fixedCount} user" });
+        }
 
     }
 }

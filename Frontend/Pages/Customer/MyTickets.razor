@@ -1,0 +1,265 @@
+@page "/customer/my-tickets"
+@layout CustomerLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="my-tickets-container">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="header-content">
+            <h2>Yêu cầu của tôi</h2>
+            <p>Theo dõi trạng thái các yêu cầu hỗ trợ</p>
+        </div>
+        <a href="/customer/create-ticket" class="btn-create">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            Tạo yêu cầu mới
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <div class="status-filters">
+            <button class="filter-btn @(currentFilter == "all" ? "active" : "")" @onclick='() => FilterByStatus("all")'>
+                Tất cả
+                <span class="badge">@tickets.Count</span>
+            </button>
+            <button class="filter-btn @(currentFilter == "new" ? "active" : "")" @onclick='() => FilterByStatus("new")'>
+                <span class="status-dot new"></span>
+                Mới
+                <span class="badge">@tickets.Count(t => t.Status == 0)</span>
+            </button>
+            <button class="filter-btn @(currentFilter == "in-progress" ? "active" : "")" @onclick='() => FilterByStatus("in-progress")'>
+                <span class="status-dot in-progress"></span>
+                Đang xử lý
+                <span class="badge">@tickets.Count(t => t.Status == 2)</span>
+            </button>
+            <button class="filter-btn @(currentFilter == "resolved" ? "active" : "")" @onclick='() => FilterByStatus("resolved")'>
+                <span class="status-dot resolved"></span>
+                Đã xong
+                <span class="badge">@tickets.Count(t => t.Status == 3 || t.Status == 4)</span>
+            </button>
+        </div>
+        
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm kiếm yêu cầu..." @bind="searchQuery" @bind:event="oninput" />
+        </div>
+    </div>
+
+    <!-- Tickets List -->
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải dữ liệu...</p>
+        </div>
+    }
+    else if (filteredTickets.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            @if (currentFilter != "all" || !string.IsNullOrEmpty(searchQuery))
+            {
+                <p>Không tìm thấy yêu cầu phù hợp</p>
+                <button class="btn-reset" @onclick="ResetFilters">Xóa bộ lọc</button>
+            }
+            else
+            {
+                <p>Bạn chưa có yêu cầu nào</p>
+                <a href="/customer/create-ticket" class="btn-primary">Tạo yêu cầu đầu tiên</a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="tickets-grid">
+            @foreach (var ticket in filteredTickets)
+            {
+                <div class="ticket-card" @onclick="() => ViewTicket(ticket.Id)">
+                    <!-- Status Progress -->
+                    <div class="status-progress">
+                        <div class="progress-step @(ticket.Status >= 0 ? "completed" : "")">
+                            <div class="step-dot"></div>
+                            <span>Mới</span>
+                        </div>
+                        <div class="progress-line @(ticket.Status >= 2 ? "completed" : "")"></div>
+                        <div class="progress-step @(ticket.Status >= 2 ? "completed" : "")">
+                            <div class="step-dot"></div>
+                            <span>Đang xử lý</span>
+                        </div>
+                        <div class="progress-line @(ticket.Status >= 3 ? "completed" : "")"></div>
+                        <div class="progress-step @(ticket.Status >= 3 ? "completed" : "")">
+                            <div class="step-dot"></div>
+                            <span>Hoàn thành</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Ticket Content -->
+                    <div class="ticket-content">
+                        <div class="ticket-header">
+                            <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                            <span class="ticket-status @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                        </div>
+                        
+                        <p class="ticket-description">@ticket.Description</p>
+                        
+                        <div class="ticket-footer">
+                            <div class="ticket-meta">
+                                <span class="product-tag">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    </svg>
+                                    @ticket.ProductName
+                                </span>
+                                <span class="date-tag">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    @ticket.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                                </span>
+                            </div>
+                            
+                            <div class="ticket-actions">
+                                @if (ticket.HasNewReply)
+                                {
+                                    <span class="new-reply-badge">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                        </svg>
+                                        Có phản hồi mới
+                                    </span>
+                                }
+                                <button class="btn-view">
+                                    Xem chi tiết
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                        <polyline points="12 5 19 12 12 19"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<TicketDto> tickets = new();
+    private List<TicketDto> filteredTickets = new();
+    private string currentFilter = "all";
+    private string searchQuery = "";
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTickets();
+    }
+
+    private async Task LoadTickets()
+    {
+        isLoading = true;
+        try
+        {
+            // TODO: Load from API
+            await Task.Delay(500); // Simulate loading
+            
+            // Danh sách rỗng - sẽ load từ API sau
+            tickets = new List<TicketDto>();
+            
+            ApplyFilters();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterByStatus(string filter)
+    {
+        currentFilter = filter;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        var result = tickets.AsEnumerable();
+        
+        if (currentFilter != "all")
+        {
+            result = currentFilter switch
+            {
+                "new" => result.Where(t => t.Status == 0),
+                "in-progress" => result.Where(t => t.Status == 1 || t.Status == 2),
+                "resolved" => result.Where(t => t.Status == 3 || t.Status == 4),
+                _ => result
+            };
+        }
+        
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            result = result.Where(t => 
+                t.Description.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                t.ProductName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                t.Id.ToString().Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+        
+        filteredTickets = result.OrderByDescending(t => t.CreatedAt).ToList();
+    }
+
+    private void ResetFilters()
+    {
+        currentFilter = "all";
+        searchQuery = "";
+        ApplyFilters();
+    }
+
+    private void ViewTicket(Guid id)
+    {
+        Navigation.NavigateTo($"/customer/ticket/{id}");
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-new",
+        1 => "status-open",
+        2 => "status-in-progress",
+        3 => "status-resolved",
+        4 => "status-closed",
+        _ => "status-new"
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đã tiếp nhận",
+        2 => "Đang xử lý",
+        3 => "Đã giải quyết",
+        4 => "Đã đóng",
+        _ => "Mới"
+    };
+
+    public class TicketDto
+    {
+        public Guid Id { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public int Status { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public bool HasNewReply { get; set; }
+    }
+}

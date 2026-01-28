@@ -1,0 +1,432 @@
+@page "/customer/ticket/{Id:guid}"
+@layout CustomerLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="ticket-detail-container">
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải thông tin...</p>
+        </div>
+    }
+    else if (ticket == null)
+    {
+        <div class="not-found">
+            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p>Không tìm thấy yêu cầu này</p>
+            <a href="/customer/my-tickets" class="btn-back">Quay lại danh sách</a>
+        </div>
+    }
+    else
+    {
+        <!-- Ticket Info Section -->
+        <div class="info-section">
+            <div class="back-link">
+                <a href="/customer/my-tickets">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Quay lại danh sách
+                </a>
+            </div>
+            
+            <div class="ticket-info-card">
+                <div class="info-header">
+                    <div class="ticket-id-badge">
+                        <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                        <span class="ticket-status @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                    </div>
+                    <span class="created-date">Tạo lúc: @ticket.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
+                </div>
+                
+                <!-- Status Timeline -->
+                <div class="status-timeline">
+                    <div class="timeline-step @(ticket.Status >= 0 ? "completed" : "")">
+                        <div class="step-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="16"></line>
+                                <line x1="8" y1="12" x2="16" y2="12"></line>
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <span class="step-title">Đã gửi yêu cầu</span>
+                            <span class="step-time">@ticket.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-connector @(ticket.Status >= 2 ? "completed" : "")"></div>
+                    
+                    <div class="timeline-step @(ticket.Status >= 2 ? "completed" : "")">
+                        <div class="step-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <span class="step-title">Đang xử lý</span>
+                            @if (ticket.Status >= 2)
+                            {
+                                <span class="step-time">@ticket.UpdatedAt?.ToString("dd/MM/yyyy HH:mm")</span>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-connector @(ticket.Status >= 3 ? "completed" : "")"></div>
+                    
+                    <div class="timeline-step @(ticket.Status >= 3 ? "completed" : "")">
+                        <div class="step-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <div class="step-info">
+                            <span class="step-title">Hoàn thành</span>
+                            @if (ticket.Status >= 3)
+                            {
+                                <span class="step-time">@ticket.ResolvedAt?.ToString("dd/MM/yyyy HH:mm")</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ticket Details -->
+                <div class="ticket-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Sản phẩm</span>
+                        <span class="detail-value product">@ticket.ProductName</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phân loại</span>
+                        <span class="detail-value category @GetCategoryClass(ticket.Category)">@GetCategoryText(ticket.Category)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Độ ưu tiên</span>
+                        <span class="detail-value priority @GetPriorityClass(ticket.Priority)">@GetPriorityText(ticket.Priority)</span>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="description-section">
+                    <h4>Mô tả vấn đề</h4>
+                    <p>@ticket.Description</p>
+                </div>
+                
+                <!-- Attachments -->
+                @if (ticket.Attachments?.Count > 0)
+                {
+                    <div class="attachments-section">
+                        <h4>File đính kèm</h4>
+                        <div class="attachments-list">
+                            @foreach (var file in ticket.Attachments)
+                            {
+                                <a href="@file.Url" target="_blank" class="attachment-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                        <polyline points="13 2 13 9 20 9"></polyline>
+                                    </svg>
+                                    <span>@file.FileName</span>
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <!-- Chat Section -->
+        <div class="chat-section">
+            <div class="chat-header">
+                <h3>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    Trao đổi
+                </h3>
+                <span class="message-count">@messages.Count tin nhắn</span>
+            </div>
+            
+            <div class="chat-messages" @ref="chatContainer">
+                @if (messages.Count == 0)
+                {
+                    <div class="no-messages">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        <p>Chưa có tin nhắn nào</p>
+                        <span>Gửi tin nhắn để bắt đầu trao đổi với nhân viên hỗ trợ</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var message in messages)
+                    {
+                        <div class="message @(message.IsFromCustomer ? "customer" : "support")">
+                            <div class="message-avatar">
+                                @if (message.IsFromCustomer)
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                    </svg>
+                                }
+                            </div>
+                            <div class="message-content">
+                                <div class="message-header">
+                                    <span class="sender-name">@(message.IsFromCustomer ? "Bạn" : message.SenderName)</span>
+                                    <span class="message-time">@message.CreatedAt.ToString("HH:mm")</span>
+                                </div>
+                                <p class="message-text">@message.Content</p>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+            
+            <!-- Chat Input -->
+            @if (ticket.Status < 4)
+            {
+                <div class="chat-input-area">
+                    <div class="input-container">
+                        <textarea @bind="newMessage" 
+                                  @bind:event="oninput"
+                                  @onkeydown="HandleKeyDown"
+                                  placeholder="Nhập tin nhắn..." 
+                                  rows="1"></textarea>
+                        <button type="button" class="attach-btn" title="Đính kèm file">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <button type="button" class="send-btn" @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(newMessage) || isSending)">
+                        @if (isSending)
+                        {
+                            <span class="spinner"></span>
+                        }
+                        else
+                        {
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        }
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="chat-closed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>Yêu cầu này đã được đóng. Bạn có thể tạo yêu cầu mới nếu cần hỗ trợ thêm.</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+    
+    private TicketDetailDto? ticket;
+    private List<MessageDto> messages = new();
+    private string newMessage = "";
+    private bool isLoading = true;
+    private bool isSending = false;
+    private ElementReference chatContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTicket();
+    }
+
+    private async Task LoadTicket()
+    {
+        isLoading = true;
+        try
+        {
+            await Task.Delay(800); // Simulate loading
+            
+            // TODO: Load from API
+            ticket = new TicketDetailDto
+            {
+                Id = Id,
+                Description = "Không thể đăng nhập vào hệ thống Smart ERP sau khi cập nhật mật khẩu. Hệ thống báo lỗi 'Invalid credentials' mặc dù đã nhập đúng thông tin. Đã thử reset password nhiều lần nhưng vẫn không được.",
+                Status = 2,
+                Priority = 2,
+                Category = 2,
+                ProductName = "Smart ERP",
+                CreatedAt = DateTime.Now.AddDays(-2),
+                UpdatedAt = DateTime.Now.AddDays(-1),
+                Attachments = new List<AttachmentDto>
+                {
+                    new AttachmentDto { FileName = "screenshot_error.png", Url = "#" }
+                }
+            };
+            
+            messages = new List<MessageDto>
+            {
+                new MessageDto
+                {
+                    Content = "Chào bạn, cảm ơn bạn đã liên hệ. Tôi sẽ kiểm tra vấn đề này cho bạn.",
+                    IsFromCustomer = false,
+                    SenderName = "Nhân viên hỗ trợ",
+                    CreatedAt = DateTime.Now.AddDays(-2).AddHours(2)
+                },
+                new MessageDto
+                {
+                    Content = "Dạ em cảm ơn. Em đợi phản hồi ạ.",
+                    IsFromCustomer = true,
+                    CreatedAt = DateTime.Now.AddDays(-2).AddHours(3)
+                },
+                new MessageDto
+                {
+                    Content = "Tôi đã kiểm tra và phát hiện tài khoản của bạn bị khóa do đăng nhập sai nhiều lần. Tôi đã mở khóa lại rồi, bạn thử đăng nhập lại xem nhé!",
+                    IsFromCustomer = false,
+                    SenderName = "Nhân viên hỗ trợ",
+                    CreatedAt = DateTime.Now.AddDays(-1)
+                }
+            };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(newMessage)) return;
+        
+        isSending = true;
+        try
+        {
+            // TODO: Send to API
+            await Task.Delay(500);
+            
+            messages.Add(new MessageDto
+            {
+                Content = newMessage,
+                IsFromCustomer = true,
+                CreatedAt = DateTime.Now
+            });
+            
+            newMessage = "";
+        }
+        finally
+        {
+            isSending = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-new",
+        1 => "status-open",
+        2 => "status-in-progress",
+        3 => "status-resolved",
+        4 => "status-closed",
+        _ => "status-new"
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đã tiếp nhận",
+        2 => "Đang xử lý",
+        3 => "Đã giải quyết",
+        4 => "Đã đóng",
+        _ => "Mới"
+    };
+
+    private string GetCategoryClass(int category) => category switch
+    {
+        0 => "category-bug",
+        1 => "category-feature",
+        2 => "category-support",
+        3 => "category-sale",
+        _ => ""
+    };
+
+    private string GetCategoryText(int category) => category switch
+    {
+        0 => "Lỗi kỹ thuật",
+        1 => "Yêu cầu tính năng",
+        2 => "Hỗ trợ sử dụng",
+        3 => "Tư vấn mua hàng",
+        _ => "Chưa phân loại"
+    };
+
+    private string GetPriorityClass(int priority) => priority switch
+    {
+        0 => "priority-low",
+        1 => "priority-medium",
+        2 => "priority-high",
+        3 => "priority-critical",
+        _ => "priority-medium"
+    };
+
+    private string GetPriorityText(int priority) => priority switch
+    {
+        0 => "Thấp",
+        1 => "Trung bình",
+        2 => "Cao",
+        3 => "Khẩn cấp",
+        _ => "Trung bình"
+    };
+
+    public class TicketDetailDto
+    {
+        public Guid Id { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int Category { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public DateTime? ResolvedAt { get; set; }
+        public List<AttachmentDto>? Attachments { get; set; }
+    }
+
+    public class AttachmentDto
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+    }
+
+    public class MessageDto
+    {
+        public string Content { get; set; } = string.Empty;
+        public bool IsFromCustomer { get; set; }
+        public string SenderName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+}

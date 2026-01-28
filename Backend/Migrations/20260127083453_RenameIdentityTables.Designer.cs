@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SmartHelpdesk.Data;
 
@@ -11,9 +12,11 @@ using SmartHelpdesk.Data;
 namespace SmartHelpdesk.API.Migrations
 {
     [DbContext(typeof(SmartHelpdeskContext))]
-    partial class SmartHelpdeskContextModelSnapshot : ModelSnapshot
+    [Migration("20260127083453_RenameIdentityTables")]
+    partial class RenameIdentityTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -180,32 +183,6 @@ namespace SmartHelpdesk.API.Migrations
                     b.ToTable("Comments");
                 });
 
-            modelBuilder.Entity("SmartHelpdesk.Data.Entities.Product", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Products");
-                });
-
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -242,9 +219,6 @@ namespace SmartHelpdesk.API.Migrations
                     b.Property<Guid?>("AssignedToId")
                         .HasColumnType("char(36)");
 
-                    b.Property<int?>("Category")
-                        .HasColumnType("int");
-
                     b.Property<DateTimeOffset?>("ClosedAt")
                         .HasColumnType("datetime(6)");
 
@@ -257,12 +231,6 @@ namespace SmartHelpdesk.API.Migrations
 
                     b.Property<int>("Priority")
                         .HasColumnType("int");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<float?>("SentimentScore")
-                        .HasColumnType("float");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -282,8 +250,6 @@ namespace SmartHelpdesk.API.Migrations
 
                     b.HasIndex("AssignedToId");
 
-                    b.HasIndex("ProductId");
-
                     b.HasIndex("UserId");
 
                     b.ToTable("Tickets");
@@ -295,6 +261,9 @@ namespace SmartHelpdesk.API.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<int>("AccessFailedCount")
+                        .HasColumnType("int");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("longtext");
@@ -302,6 +271,15 @@ namespace SmartHelpdesk.API.Migrations
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
+
+                    b.Property<bool>("EmailConfirmed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<bool>("LockoutEnabled")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTimeOffset?>("LockoutEnd")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -322,6 +300,9 @@ namespace SmartHelpdesk.API.Migrations
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("longtext");
 
+                    b.Property<bool>("PhoneNumberConfirmed")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("longtext");
 
@@ -329,6 +310,9 @@ namespace SmartHelpdesk.API.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
+
+                    b.Property<bool>("TwoFactorEnabled")
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
@@ -434,12 +418,6 @@ namespace SmartHelpdesk.API.Migrations
                         .HasForeignKey("AssignedToId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("SmartHelpdesk.Data.Entities.Product", "Product")
-                        .WithMany("Tickets")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("SmartHelpdesk.Data.Entities.User", "User")
                         .WithMany("CreatedTickets")
                         .HasForeignKey("UserId")
@@ -448,19 +426,12 @@ namespace SmartHelpdesk.API.Migrations
 
                     b.Navigation("AssignedTo");
 
-                    b.Navigation("Product");
-
                     b.Navigation("User");
                 });
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Comment", b =>
                 {
                     b.Navigation("Attachments");
-                });
-
-            modelBuilder.Entity("SmartHelpdesk.Data.Entities.Product", b =>
-                {
-                    b.Navigation("Tickets");
                 });
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Ticket", b =>

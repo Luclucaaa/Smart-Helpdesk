@@ -1,0 +1,442 @@
+@page "/auth"
+@page "/login"
+@page "/register"
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>@(isLoginMode ? "Đăng nhập" : "Đăng ký") - Smart Helpdesk</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-background">
+        <div class="shape shape-1"></div>
+        <div class="shape shape-2"></div>
+        <div class="shape shape-3"></div>
+    </div>
+    
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <h1>Smart Helpdesk</h1>
+            <p class="subtitle">@(isLoginMode ? "Chào mừng trở lại!" : "Tạo tài khoản mới")</p>
+        </div>
+
+        <div class="auth-tabs">
+            <button class="tab-btn @(isLoginMode ? "active" : "")" @onclick="() => SwitchMode(true)">
+                Đăng nhập
+            </button>
+            <button class="tab-btn @(!isLoginMode ? "active" : "")" @onclick="() => SwitchMode(false)">
+                Đăng ký
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+                <span>@errorMessage</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>@successMessage</span>
+            </div>
+        }
+
+        @if (isLoginMode)
+        {
+            <!-- Login Form -->
+            <EditForm Model="loginModel" OnValidSubmit="HandleLogin" class="auth-form">
+                <div class="form-group">
+                    <label for="email">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        Email
+                    </label>
+                    <input type="email" id="email" @bind="loginModel.Email" placeholder="Nhập email của bạn" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Mật khẩu
+                    </label>
+                    <div class="password-input">
+                        <input type="@(showPassword ? "text" : "password")" id="password" @bind="loginModel.Password" placeholder="Nhập mật khẩu" required />
+                        <button type="button" class="toggle-password" @onclick="TogglePassword">
+                            @if (showPassword)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="rememberMe" />
+                        <span class="checkmark"></span>
+                        Ghi nhớ đăng nhập
+                    </label>
+                    <a href="#" class="forgot-link">Quên mật khẩu?</a>
+                </div>
+
+                <button type="submit" class="btn-submit" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner"></span>
+                        <span>Đang xử lý...</span>
+                    }
+                    else
+                    {
+                        <span>Đăng nhập</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    }
+                </button>
+            </EditForm>
+        }
+        else
+        {
+            <!-- Register Form -->
+            <EditForm Model="registerModel" OnValidSubmit="HandleRegister" class="auth-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="name">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            Họ
+                        </label>
+                        <input type="text" id="name" @bind="registerModel.Name" placeholder="Nhập họ" required maxlength="100" />
+                    </div>
+                    <div class="form-group">
+                        <label for="surname">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            Tên
+                        </label>
+                        <input type="text" id="surname" @bind="registerModel.Surname" placeholder="Nhập tên" required maxlength="100" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="username">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Tên đăng nhập
+                    </label>
+                    <input type="text" id="username" @bind="registerModel.UserName" placeholder="Nhập tên đăng nhập" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-email">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                            <polyline points="22,6 12,13 2,6"></polyline>
+                        </svg>
+                        Email
+                    </label>
+                    <input type="email" id="reg-email" @bind="registerModel.Email" placeholder="Nhập email của bạn" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        Số điện thoại
+                    </label>
+                    <input type="tel" id="phone" @bind="registerModel.PhoneNumber" placeholder="Nhập số điện thoại" required />
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-password">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                        Mật khẩu
+                    </label>
+                    <div class="password-input">
+                        <input type="@(showPassword ? "text" : "password")" id="reg-password" @bind="registerModel.Password" placeholder="Nhập mật khẩu (5-15 ký tự)" required minlength="5" maxlength="15" />
+                        <button type="button" class="toggle-password" @onclick="TogglePassword">
+                            @if (showPassword)
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            }
+                        </button>
+                    </div>
+                    <div class="password-requirements">
+                        <p>Mật khẩu phải có:</p>
+                        <ul>
+                            <li class="@(HasLowercase() ? "valid" : "")">Ít nhất 1 chữ thường (a-z)</li>
+                            <li class="@(HasUppercase() ? "valid" : "")">Ít nhất 1 chữ hoa (A-Z)</li>
+                            <li class="@(HasDigit() ? "valid" : "")">Ít nhất 1 số (0-9)</li>
+                            <li class="@(HasSymbol() ? "valid" : "")">Ít nhất 1 ký tự đặc biệt (!@@#$...)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="agreeTerms" required />
+                        <span class="checkmark"></span>
+                        Tôi đồng ý với <a href="#">Điều khoản sử dụng</a>
+                    </label>
+                </div>
+
+                <button type="submit" class="btn-submit" disabled="@(isLoading || !agreeTerms)">
+                    @if (isLoading)
+                    {
+                        <span class="spinner"></span>
+                        <span>Đang xử lý...</span>
+                    }
+                    else
+                    {
+                        <span>Đăng ký</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    }
+                </button>
+            </EditForm>
+        }
+
+        <div class="auth-footer">
+            <p>
+                @if (isLoginMode)
+                {
+                    <span>Chưa có tài khoản? </span>
+                    <a href="#" @onclick="() => SwitchMode(false)" @onclick:preventDefault>Đăng ký ngay</a>
+                }
+                else
+                {
+                    <span>Đã có tài khoản? </span>
+                    <a href="#" @onclick="() => SwitchMode(true)" @onclick:preventDefault>Đăng nhập</a>
+                }
+            </p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoginMode = true;
+    private bool isLoading = false;
+    private bool showPassword = false;
+    private bool rememberMe = false;
+    private bool agreeTerms = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    private LoginModel loginModel = new();
+    private RegisterModel registerModel = new();
+
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        isLoginMode = !uri.AbsolutePath.Contains("register");
+    }
+
+    [Inject]
+    private NavigationManager NavigationManager { get; set; } = default!;
+
+    private void SwitchMode(bool toLogin)
+    {
+        isLoginMode = toLogin;
+        errorMessage = "";
+        successMessage = "";
+    }
+
+    private void TogglePassword()
+    {
+        showPassword = !showPassword;
+    }
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = "";
+        successMessage = "";
+        
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Auth/Login", new 
+            {
+                Email = loginModel.Email,
+                Password = loginModel.Password
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                // Lưu token và user info vào localStorage
+                if (result != null)
+                {
+                    await JS.InvokeVoidAsync("localStorage.setItem", "token", result.Token);
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userName", result.Name ?? "");
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userSurname", result.Surname ?? "");
+                }
+                successMessage = "Đăng nhập thành công! Đang chuyển hướng...";
+                isLoading = false;
+                StateHasChanged();
+                await Task.Delay(1500);
+                NavigationManager.NavigateTo("/customer", forceLoad: true);
+                return;
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                errorMessage = "Email hoặc mật khẩu không đúng.";
+            }
+            else
+            {
+                errorMessage = "Đăng nhập thất bại. Vui lòng thử lại.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Không thể kết nối đến server. Vui lòng kiểm tra lại.";
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        errorMessage = "";
+        successMessage = "";
+
+        if (!IsPasswordValid())
+        {
+            errorMessage = "Mật khẩu không đáp ứng yêu cầu bảo mật.";
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/Auth/Register", new 
+            {
+                Name = registerModel.Name,
+                Surname = registerModel.Surname,
+                Email = registerModel.Email,
+                UserName = registerModel.UserName,
+                PhoneNumber = registerModel.PhoneNumber,
+                Password = registerModel.Password
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Lưu user info vào localStorage
+                await JS.InvokeVoidAsync("localStorage.setItem", "userName", registerModel.Name);
+                await JS.InvokeVoidAsync("localStorage.setItem", "userSurname", registerModel.Surname);
+                
+                successMessage = "Đăng ký thành công! Đang chuyển hướng...";
+                registerModel = new RegisterModel();
+                isLoading = false;
+                StateHasChanged();
+                await Task.Delay(1500);
+                NavigationManager.NavigateTo("/customer", forceLoad: true);
+                return;
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                errorMessage = "Đăng ký thất bại. " + (error.Contains("DuplicateEmail") ? "Email đã tồn tại." : 
+                              error.Contains("DuplicateUserName") ? "Tên đăng nhập đã tồn tại." : "Vui lòng thử lại.");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Không thể kết nối đến server. Vui lòng kiểm tra lại.";
+        }
+        
+        isLoading = false;
+    }
+
+    private bool HasLowercase() => !string.IsNullOrEmpty(registerModel.Password) && 
+        System.Text.RegularExpressions.Regex.IsMatch(registerModel.Password, "[a-z]");
+    
+    private bool HasUppercase() => !string.IsNullOrEmpty(registerModel.Password) && 
+        System.Text.RegularExpressions.Regex.IsMatch(registerModel.Password, "[A-Z]");
+    
+    private bool HasDigit() => !string.IsNullOrEmpty(registerModel.Password) && 
+        System.Text.RegularExpressions.Regex.IsMatch(registerModel.Password, @"\d");
+    
+    private bool HasSymbol() => !string.IsNullOrEmpty(registerModel.Password) && 
+        System.Text.RegularExpressions.Regex.IsMatch(registerModel.Password, @"\W");
+
+    private bool IsPasswordValid() => HasLowercase() && HasUppercase() && HasDigit() && HasSymbol() &&
+        registerModel.Password.Length >= 5 && registerModel.Password.Length <= 15;
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    public class RegisterModel
+    {
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string UserName { get; set; } = "";
+        public string PhoneNumber { get; set; } = "";
+        public string Password { get; set; } = "";
+    }
+
+    public class LoginResponse
+    {
+        public string Token { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+    }
+}

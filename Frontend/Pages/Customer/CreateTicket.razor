@@ -1,0 +1,294 @@
+@page "/customer/create-ticket"
+@layout CustomerLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<div class="create-ticket-container">
+    <div class="form-card">
+        <div class="form-header">
+            <div class="form-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            </div>
+            <div class="form-header-text">
+                <h2>Gửi yêu cầu hỗ trợ</h2>
+                <p>Mô tả vấn đề của bạn, chúng tôi sẽ phản hồi sớm nhất</p>
+            </div>
+        </div>
+
+        <EditForm Model="@ticketModel" OnValidSubmit="@HandleSubmit" class="ticket-form">
+            <DataAnnotationsValidator />
+            
+            <!-- Product Selection -->
+            <div class="form-group">
+                <label class="form-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    Sản phẩm đang sử dụng
+                </label>
+                <InputSelect @bind-Value="ticketModel.ProductId" class="form-control">
+                    <option value="">-- Chọn sản phẩm --</option>
+                    @if (products != null)
+                    {
+                        @foreach (var product in products)
+                        {
+                            <option value="@product.Id">@product.Name</option>
+                        }
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => ticketModel.ProductId)" class="validation-message" />
+            </div>
+
+            <!-- Description -->
+            <div class="form-group">
+                <label class="form-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    Mô tả vấn đề
+                </label>
+                <InputTextArea @bind-Value="ticketModel.Description" 
+                               class="form-control textarea" 
+                               placeholder="Vui lòng mô tả chi tiết vấn đề bạn đang gặp phải...&#10;&#10;Ví dụ:&#10;- Lỗi xảy ra khi nào?&#10;- Các bước để tái hiện lỗi?&#10;- Thông báo lỗi (nếu có)?" 
+                               rows="8" />
+                <ValidationMessage For="@(() => ticketModel.Description)" class="validation-message" />
+                <span class="char-count">@(ticketModel.Description?.Length ?? 0) / 2000</span>
+            </div>
+
+            <!-- File Attachment -->
+            <div class="form-group">
+                <label class="form-label">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                    </svg>
+                    Đính kèm ảnh/file (tùy chọn)
+                </label>
+                <div class="file-upload-area" @onclick="TriggerFileInput">
+                    <input type="file" 
+                           @ref="fileInput" 
+                           @onchange="HandleFileSelected" 
+                           accept="image/*,.pdf,.doc,.docx" 
+                           multiple 
+                           style="display: none;" />
+                    
+                    @if (selectedFiles.Count == 0)
+                    {
+                        <div class="upload-placeholder">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <p>Kéo thả file vào đây hoặc <span class="browse-link">chọn file</span></p>
+                            <span class="file-hint">Hỗ trợ: PNG, JPG, PDF, DOC (tối đa 10MB)</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="selected-files">
+                            @foreach (var file in selectedFiles)
+                            {
+                                <div class="file-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                        <polyline points="13 2 13 9 20 9"></polyline>
+                                    </svg>
+                                    <span class="file-name">@file.Name</span>
+                                    <span class="file-size">@FormatFileSize(file.Size)</span>
+                                    <button type="button" class="remove-file" @onclick:stopPropagation="true" @onclick="() => RemoveFile(file)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            }
+                            <p class="add-more-link">+ Thêm file khác</p>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-banner">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>@errorMessage</span>
+                </div>
+            }
+
+            <!-- Success Message -->
+            @if (isSuccess)
+            {
+                <div class="success-banner">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span>Gửi yêu cầu thành công! Đang chuyển hướng...</span>
+                </div>
+            }
+
+            <!-- Submit Button -->
+            <div class="form-actions">
+                <a href="/customer" class="btn-secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Quay lại
+                </a>
+                <button type="submit" class="btn-submit" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner"></span>
+                        <span>Đang gửi...</span>
+                    }
+                    else
+                    {
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                        </svg>
+                        <span>Gửi yêu cầu</span>
+                    }
+                </button>
+            </div>
+        </EditForm>
+    </div>
+    
+    <!-- Tips Section -->
+    <div class="tips-card">
+        <h3>💡 Mẹo gửi yêu cầu hiệu quả</h3>
+        <ul>
+            <li>
+                <strong>Mô tả chi tiết</strong>
+                <p>Cung cấp đầy đủ thông tin về vấn đề bạn gặp phải</p>
+            </li>
+            <li>
+                <strong>Đính kèm ảnh chụp màn hình</strong>
+                <p>Hình ảnh giúp chúng tôi hiểu rõ vấn đề hơn</p>
+            </li>
+            <li>
+                <strong>Các bước tái hiện lỗi</strong>
+                <p>Liệt kê các bước để chúng tôi có thể tái hiện vấn đề</p>
+            </li>
+        </ul>
+    </div>
+</div>
+
+@code {
+    private CreateTicketModel ticketModel = new();
+    private List<ProductDto> products = new();
+    private List<IBrowserFile> selectedFiles = new();
+    private ElementReference fileInput;
+    private bool isSubmitting = false;
+    private bool isSuccess = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            // TODO: Load products from API
+            products = new List<ProductDto>
+            {
+                new ProductDto { Id = Guid.NewGuid(), Name = "Smart ERP" },
+                new ProductDto { Id = Guid.NewGuid(), Name = "Smart CRM" },
+                new ProductDto { Id = Guid.NewGuid(), Name = "Smart POS" }
+            };
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Không thể tải danh sách sản phẩm: " + ex.Message;
+        }
+    }
+
+    private async Task TriggerFileInput()
+    {
+        // This will be handled by JS interop if needed
+        await Task.CompletedTask;
+    }
+
+    private void HandleFileSelected(ChangeEventArgs e)
+    {
+        // Handle file selection
+    }
+
+    private void RemoveFile(IBrowserFile file)
+    {
+        selectedFiles.Remove(file);
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrEmpty(ticketModel.ProductId))
+        {
+            errorMessage = "Vui lòng chọn sản phẩm";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ticketModel.Description))
+        {
+            errorMessage = "Vui lòng mô tả vấn đề của bạn";
+            return;
+        }
+
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            // TODO: Submit to API
+            await Task.Delay(1500); // Simulate API call
+
+            isSuccess = true;
+            await Task.Delay(2000);
+            Navigation.NavigateTo("/customer/my-tickets");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Có lỗi xảy ra: " + ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    public class CreateTicketModel
+    {
+        public string? ProductId { get; set; }
+        public string? Description { get; set; }
+    }
+
+    public class ProductDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+    }
+}

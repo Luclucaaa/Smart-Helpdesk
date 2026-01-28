@@ -1,0 +1,173 @@
+@page "/customer"
+@layout CustomerLayout
+
+<div class="dashboard-container">
+    <!-- Welcome Section -->
+    <div class="welcome-card">
+        <div class="welcome-content">
+            <h2>Chào mừng bạn đến với Cổng hỗ trợ! 👋</h2>
+            <p>Chúng tôi luôn sẵn sàng hỗ trợ bạn. Hãy gửi yêu cầu hoặc theo dõi trạng thái các vấn đề của bạn.</p>
+        </div>
+        <div class="welcome-illustration">
+            <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                <path d="M8 10h.01"></path>
+                <path d="M12 10h.01"></path>
+                <path d="M16 10h.01"></path>
+            </svg>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon new">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">@newTickets</span>
+                <span class="stat-label">Yêu cầu mới</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon processing">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">@inProgressTickets</span>
+                <span class="stat-label">Đang xử lý</span>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon done">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-number">@resolvedTickets</span>
+                <span class="stat-label">Đã hoàn thành</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <h3 class="section-title">Thao tác nhanh</h3>
+        <div class="actions-grid">
+            <a href="/customer/create-ticket" class="action-card create">
+                <div class="action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                </div>
+                <div class="action-info">
+                    <span class="action-title">Gửi yêu cầu mới</span>
+                    <span class="action-desc">Tạo ticket hỗ trợ</span>
+                </div>
+            </a>
+            
+            <a href="/customer/my-tickets" class="action-card view">
+                <div class="action-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                </div>
+                <div class="action-info">
+                    <span class="action-title">Xem yêu cầu</span>
+                    <span class="action-desc">Theo dõi trạng thái</span>
+                </div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Recent Tickets -->
+    <div class="recent-section">
+        <h3 class="section-title">Yêu cầu gần đây</h3>
+        @if (recentTickets == null || recentTickets.Count == 0)
+        {
+            <div class="empty-state">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <p>Bạn chưa có yêu cầu nào</p>
+                <a href="/customer/create-ticket" class="btn-primary">Tạo yêu cầu đầu tiên</a>
+            </div>
+        }
+        else
+        {
+            <div class="tickets-list">
+                @foreach (var ticket in recentTickets)
+                {
+                    <a href="/customer/ticket/@ticket.Id" class="ticket-item">
+                        <div class="ticket-header">
+                            <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8)</span>
+                            <span class="ticket-status @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                        </div>
+                        <p class="ticket-title">@ticket.Title</p>
+                        <div class="ticket-meta">
+                            <span class="ticket-product">@ticket.ProductName</span>
+                            <span class="ticket-date">@ticket.CreatedAt.ToString("dd/MM/yyyy")</span>
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private int newTickets = 0;
+    private int inProgressTickets = 0;
+    private int resolvedTickets = 0;
+    private List<TicketSummary>? recentTickets;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: Load real data from API
+        recentTickets = new List<TicketSummary>();
+        await Task.CompletedTask;
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-new",
+        1 => "status-open",
+        2 => "status-in-progress",
+        3 => "status-resolved",
+        4 => "status-closed",
+        _ => "status-new"
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đã mở",
+        2 => "Đang xử lý",
+        3 => "Đã giải quyết",
+        4 => "Đã đóng",
+        _ => "Mới"
+    };
+
+    public class TicketSummary
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public int Status { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+    }
+}

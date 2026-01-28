@@ -45,6 +45,18 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// CORS Configuration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazorClient", policy =>
+    {
+        policy.WithOrigins("https://localhost:7042", "http://localhost:5130")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
 // AutoMapper
 builder.Services.AddAutoMapper(typeof(SmartHelpdeskProfile));
 
@@ -68,12 +80,79 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// Seed Roles và Users mặc định
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    
+    // Seed Roles
+    string[] roleNames = { "Admin", "Nhân viên", "Customer" };
+    
+    foreach (var roleName in roleNames)
+    {
+        if (!await roleManager.RoleExistsAsync(roleName))
+        {
+            await roleManager.CreateAsync(new Role { Name = roleName });
+        }
+    }
+    
+    // Xóa role "Support" nếu tồn tại (đã đổi sang "Nhân viên")
+    var supportRole = await roleManager.FindByNameAsync("Support");
+    if (supportRole != null)
+    {
+        await roleManager.DeleteAsync(supportRole);
+    }
+    
+    // Seed Admin account
+    var adminEmail = "admin@smarthelpdesk.com";
+    var adminUser = await userManager.FindByEmailAsync(adminEmail);
+    if (adminUser == null)
+    {
+        adminUser = new User
+        {
+            UserName = "admin",
+            Email = adminEmail,
+            Name = "Quản trị",
+            Surname = "Admin",
+            EmailConfirmed = true
+        };
+        var result = await userManager.CreateAsync(adminUser, "Admin@123");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+        }
+    }
+    
+    // Seed Nhân viên account
+    var staffEmail = "nhanvien@smarthelpdesk.com";
+    var staffUser = await userManager.FindByEmailAsync(staffEmail);
+    if (staffUser == null)
+    {
+        staffUser = new User
+        {
+            UserName = "nhanvien",
+            Email = staffEmail,
+            Name = "Nhân viên",
+            Surname = "Hỗ trợ",
+            EmailConfirmed = true
+        };
+        var result = await userManager.CreateAsync(staffUser, "Nhanvien@123");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(staffUser, "Nhân viên");
+        }
+    }
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("AllowBlazorClient");
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
