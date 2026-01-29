@@ -9,7 +9,9 @@ namespace SmartHelpdesk.DTOs.Responses
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
         public Guid UserId { get; set; }
+        public string UserName { get; set; } = null!;
         public string UserEmail { get; set; } = null!;
+        public bool IsFromAgent { get; set; }
         public Guid TicketId { get; set; }
         public string TicketTitle { get; set; } = null!;
     }

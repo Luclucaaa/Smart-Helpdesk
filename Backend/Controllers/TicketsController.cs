@@ -40,7 +40,7 @@ namespace SmartHelpdesk.Controllers
         }
 
         [HttpGet("GetTickets")]
-        [Authorize(Roles = "Admin,SupportAgent")]
+        [Authorize(Roles = "Admin,Nhân viên")]
         public async Task<IActionResult> GetTickets([FromQuery]TicketsQueryFilters filters)
         {
             var tickets = await _ticketsService.GetTickets(filters);
@@ -114,6 +114,21 @@ namespace SmartHelpdesk.Controllers
             catch (ForbiddenException)
             {
                 return Forbid();
+            }
+        }
+
+        [HttpPatch("UpdateTicketStatus/{id}")]
+        [Authorize(Roles = "Admin,Nhân viên")]
+        public async Task<IActionResult> UpdateTicketStatus(Guid id, UpdateTicketStatusDTO statusDTO)
+        {
+            try
+            {
+                await _ticketsService.UpdateTicketStatus(id, statusDTO.Status);
+                return Ok();
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
             }
         }
 

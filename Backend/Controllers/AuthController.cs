@@ -65,12 +65,13 @@ namespace SmartHelpdesk.Controllers
 
             if (user != null && await _userManager.CheckPasswordAsync(user, userLoginDTO.Password))
             {
-
                 var token = await _tokenService.GenerateJwtToken(user);
+                var roles = await _userManager.GetRolesAsync(user);
                 return Ok(new { 
                     token = token, 
                     name = user.Name,
-                    surname = user.Surname
+                    surname = user.Surname,
+                    roles = roles
                 });
             }
             return Unauthorized();

@@ -50,7 +50,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowBlazorClient", policy =>
     {
-        policy.WithOrigins("https://localhost:7042", "http://localhost:5130")
+        policy.WithOrigins(
+                "https://localhost:7042", 
+                "http://localhost:5130",
+                "http://localhost:5000",
+                "http://localhost:5002"  // Frontend Blazor WASM
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

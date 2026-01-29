@@ -52,7 +52,9 @@ namespace SmartHelpdesk.Services
             var tickets = await _context.Tickets
                 .Include(ticket => ticket.User)
                 .Include(ticket => ticket.AssignedTo)
+                .Include(ticket => ticket.Product)
                 .Include(ticket => ticket.Comments)
+                    .ThenInclude(comment => comment.User)
                 .ToListAsync();
             var ticket = tickets.FirstOrDefault(t => t.Id == id);
             if (ticket == null)
@@ -70,6 +72,7 @@ namespace SmartHelpdesk.Services
             var query = _context.Tickets
                 .Include(ticket => ticket.User)
                 .Include(ticket => ticket.AssignedTo)
+                .Include(ticket => ticket.Product)
                 .Include(ticket => ticket.Comments)
                 .AsQueryable();
 
@@ -156,6 +159,25 @@ namespace SmartHelpdesk.Services
             ticket.AssignedToId = ticketDTO.AssignedToId;
 
             if(ticketDTO.Status == Status.Closed)
+            {
+                ticket.ClosedAt = DateTimeOffset.Now;
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateTicketStatus(Guid id, Status status)
+        {
+            var ticket = await _context.Tickets.FindAsync(id);
+            if (ticket == null)
+            {
+                throw new NotFoundException();
+            }
+
+            ticket.Status = status;
+            ticket.UpdatedAt = DateTimeOffset.Now;
+
+            if (status == Status.Closed)
             {
                 ticket.ClosedAt = DateTimeOffset.Now;
             }

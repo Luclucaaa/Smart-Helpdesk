@@ -1,0 +1,548 @@
+@page "/agent/ticket/{Id:guid}"
+@layout AgentLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<PageTitle>Chi tiết Ticket - Agent Dashboard</PageTitle>
+
+<div class="ticket-detail-page">
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải thông tin...</p>
+        </div>
+    }
+    else if (ticket == null)
+    {
+        <div class="not-found">
+            <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <p>Không tìm thấy ticket này</p>
+            <a href="/agent/tickets" class="btn-back">Quay lại danh sách</a>
+        </div>
+    }
+    else
+    {
+        <!-- Header -->
+        <div class="page-header">
+            <a href="/agent/tickets" class="back-link">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                Quay lại danh sách
+            </a>
+            <div class="header-info">
+                <div class="ticket-id-section">
+                    <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                    @if (ticket.SentimentScore < 0.4)
+                    {
+                        <span class="sentiment-badge negative">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="8" y1="15" x2="16" y2="15"></line>
+                                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                            </svg>
+                            Khách hàng không hài lòng
+                        </span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Ticket Info Card -->
+                <div class="info-card">
+                    <div class="card-header">
+                        <h3>Thông tin Ticket</h3>
+                        <span class="status-badge @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="label">Khách hàng</span>
+                            <div class="customer-info">
+                                <span class="name">@ticket.UserName</span>
+                                <span class="email">@ticket.UserEmail</span>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Sản phẩm</span>
+                            <span class="value product">@ticket.ProductName</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Phân loại (AI)</span>
+                            <span class="value category @GetCategoryClass(ticket.Category)">@GetCategoryText(ticket.Category)</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Độ ưu tiên (AI)</span>
+                            <span class="value priority @GetPriorityClass(ticket.Priority)">@GetPriorityText(ticket.Priority)</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Điểm cảm xúc</span>
+                            <div class="sentiment-score">
+                                <div class="score-bar">
+                                    <div class="score-fill @(ticket.SentimentScore < 0.4 ? "negative" : "positive")" 
+                                         style="width: @((ticket.SentimentScore ?? 0.5) * 100)%"></div>
+                                </div>
+                                <span class="score-value">@((ticket.SentimentScore ?? 0.5).ToString("P0"))</span>
+                            </div>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Ngày tạo</span>
+                            <span class="value">@ticket.CreatedAt.ToString("HH:mm - dd/MM/yyyy")</span>
+                        </div>
+                    </div>
+                    
+                    <div class="description-section">
+                        <h4>Mô tả vấn đề</h4>
+                        <p>@ticket.Description</p>
+                    </div>
+                    
+                    @if (ticket.Attachments?.Count > 0)
+                    {
+                        <div class="attachments-section">
+                            <h4>File đính kèm</h4>
+                            <div class="attachments-list">
+                                @foreach (var file in ticket.Attachments)
+                                {
+                                    <a href="@file.Url" target="_blank" class="attachment-item">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                            <polyline points="13 2 13 9 20 9"></polyline>
+                                        </svg>
+                                        <span>@file.FileName</span>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <!-- Chat Section -->
+                <div class="chat-card">
+                    <div class="card-header">
+                        <h3>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                            Trao đổi với khách hàng
+                        </h3>
+                        <span class="message-count">@comments.Count tin nhắn</span>
+                    </div>
+                    
+                    <div class="chat-messages">
+                        @if (comments.Count == 0)
+                        {
+                            <div class="no-messages">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                <p>Chưa có tin nhắn nào</p>
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var comment in comments)
+                            {
+                                <div class="message @(comment.IsFromAgent ? "agent" : "customer")">
+                                    <div class="message-avatar">
+                                        @if (comment.IsFromAgent)
+                                        {
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                            </svg>
+                                        }
+                                        else
+                                        {
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="12" cy="7" r="4"></circle>
+                                            </svg>
+                                        }
+                                    </div>
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="sender-name">@(comment.IsFromAgent ? comment.SenderName : "Khách hàng")</span>
+                                            <span class="message-time">@comment.CreatedAt.ToString("HH:mm - dd/MM")</span>
+                                        </div>
+                                        <p class="message-text">@comment.Content</p>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                    
+                    @if (ticket.Status != 2)
+                    {
+                        <div class="chat-input-area">
+                            <textarea @bind="newComment" 
+                                      placeholder="Nhập phản hồi cho khách hàng..." 
+                                      rows="3"></textarea>
+                            <button class="btn-send" @onclick="SendComment" disabled="@(string.IsNullOrWhiteSpace(newComment) || isSending)">
+                                @if (isSending)
+                                {
+                                    <span class="spinner-small"></span>
+                                    <span>Đang gửi...</span>
+                                }
+                                else
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                    <span>Gửi phản hồi</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Sidebar Actions -->
+            <div class="sidebar-actions">
+                <!-- Status Update Card -->
+                <div class="action-card">
+                    <h4>Cập nhật trạng thái</h4>
+                    <div class="status-buttons">
+                        <button class="status-btn @(ticket.Status == 0 ? "active" : "")" 
+                                @onclick='() => UpdateStatus(0)'
+                                disabled="@(ticket.Status == 0)">
+                            <span class="dot new"></span>
+                            Mới
+                        </button>
+                        <button class="status-btn @(ticket.Status == 1 ? "active" : "")" 
+                                @onclick='() => UpdateStatus(1)'
+                                disabled="@(ticket.Status == 1)">
+                            <span class="dot in-progress"></span>
+                            Đang xử lý
+                        </button>
+                        <button class="status-btn @(ticket.Status == 2 ? "active" : "")" 
+                                @onclick='() => UpdateStatus(2)'
+                                disabled="@(ticket.Status == 2)">
+                            <span class="dot closed"></span>
+                            Đã đóng
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Actions Card -->
+                <div class="action-card">
+                    <h4>Thao tác nhanh</h4>
+                    <div class="quick-actions">
+                        @if (ticket.Category == 0)
+                        {
+                            <button class="quick-btn bug">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                </svg>
+                                Chuyển JIRA cho Dev
+                            </button>
+                        }
+                        @if (ticket.Category == 3)
+                        {
+                            <button class="quick-btn sale">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                Chuyển cho Sale Team
+                            </button>
+                        }
+                        @if (ticket.Category == 2)
+                        {
+                            <button class="quick-btn support">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                                </svg>
+                                Gửi hướng dẫn sử dụng
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Canned Responses Card -->
+                <div class="action-card">
+                    <h4>Trả lời mẫu</h4>
+                    <div class="canned-responses">
+                        <button class="canned-btn" @onclick='() => UseCannedResponse("Cảm ơn bạn đã liên hệ! Chúng tôi đã nhận được yêu cầu và sẽ xử lý trong thời gian sớm nhất.")'>
+                            👋 Chào mừng & tiếp nhận
+                        </button>
+                        <button class="canned-btn" @onclick='() => UseCannedResponse("Vấn đề của bạn đã được xử lý xong. Vui lòng kiểm tra và phản hồi nếu còn thắc mắc.")'>
+                            ✅ Đã giải quyết xong
+                        </button>
+                        <button class="canned-btn" @onclick='() => UseCannedResponse("Chúng tôi cần thêm thông tin để hỗ trợ bạn tốt hơn. Bạn có thể cung cấp thêm chi tiết về vấn đề không?")'>
+                            ❓ Yêu cầu thêm thông tin
+                        </button>
+                        <button class="canned-btn" @onclick='() => UseCannedResponse("Chân thành xin lỗi về sự bất tiện này. Chúng tôi đang khẩn trương khắc phục và sẽ thông báo ngay khi hoàn tất.")'>
+                            🙏 Xin lỗi & đang xử lý
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+    
+    private AgentTicketDetailDto? ticket;
+    private List<CommentDto> comments = new();
+    private string newComment = "";
+    private bool isLoading = true;
+    private bool isSending = false;
+    private bool isUpdatingStatus = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTicketDetail();
+    }
+
+    private async Task LoadTicketDetail()
+    {
+        isLoading = true;
+        try
+        {
+            // Gọi API để lấy chi tiết ticket
+            var ticketResponse = await Http.GetFromJsonAsync<TicketDetailResponse>($"api/Tickets/TicketDetails/{Id}");
+            
+            if (ticketResponse != null)
+            {
+                ticket = new AgentTicketDetailDto
+                {
+                    Id = ticketResponse.Id,
+                    Title = ticketResponse.Title,
+                    Description = ticketResponse.Description,
+                    Priority = (int)ticketResponse.Priority,
+                    Status = (int)ticketResponse.Status,
+                    Category = ticketResponse.Category.HasValue ? (int?)ticketResponse.Category.Value : null,
+                    SentimentScore = ticketResponse.SentimentScore,
+                    UserName = ticketResponse.UserName,
+                    UserEmail = ticketResponse.UserEmail,
+                    ProductName = ticketResponse.ProductName,
+                    CreatedAt = ticketResponse.CreatedAt
+                };
+                
+                // Map comments
+                if (ticketResponse.Comments != null)
+                {
+                    comments = ticketResponse.Comments.Select(c => new CommentDto
+                    {
+                        Id = c.Id,
+                        Content = c.Text,
+                        IsFromAgent = c.IsFromAgent,
+                        SenderName = c.UserName,
+                        CreatedAt = c.CreatedAt
+                    }).ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading ticket: {ex.Message}");
+            ticket = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SendComment()
+    {
+        if (string.IsNullOrWhiteSpace(newComment) || ticket == null) return;
+        
+        isSending = true;
+        try
+        {
+            // Gọi API để thêm comment
+            var response = await Http.PostAsJsonAsync("api/Tickets/Comments/AddCommentToTicket", new 
+            { 
+                TicketId = Id, 
+                Text = newComment 
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                // Reload comments sau khi thêm thành công
+                await LoadTicketDetail();
+                newComment = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending comment: {ex.Message}");
+        }
+        finally
+        {
+            isSending = false;
+        }
+    }
+
+    private async Task UpdateStatus(int newStatus)
+    {
+        if (ticket == null) return;
+        
+        isUpdatingStatus = true;
+        try
+        {
+            // Gọi API để cập nhật trạng thái
+            var response = await Http.PatchAsJsonAsync($"api/Tickets/UpdateTicketStatus/{Id}", new 
+            { 
+                Status = newStatus 
+            });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                ticket.Status = newStatus;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating status: {ex.Message}");
+        }
+        finally
+        {
+            isUpdatingStatus = false;
+        }
+    }
+
+    private void UseCannedResponse(string response)
+    {
+        newComment = response;
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-new",
+        1 => "status-in-progress",
+        2 => "status-closed",
+        _ => "status-new"
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đang xử lý",
+        2 => "Đã đóng",
+        _ => "Mới"
+    };
+
+    private string GetPriorityClass(int priority) => priority switch
+    {
+        0 => "priority-low",
+        1 => "priority-medium",
+        2 => "priority-high",
+        _ => "priority-medium"
+    };
+
+    private string GetPriorityText(int priority) => priority switch
+    {
+        0 => "Thấp",
+        1 => "Trung bình",
+        2 => "Cao",
+        _ => "Trung bình"
+    };
+
+    private string GetCategoryClass(int? category) => category switch
+    {
+        0 => "category-bug",
+        1 => "category-feature",
+        2 => "category-support",
+        3 => "category-sale",
+        _ => ""
+    };
+
+    private string GetCategoryText(int? category) => category switch
+    {
+        0 => "Lỗi kỹ thuật",
+        1 => "Yêu cầu tính năng",
+        2 => "Hỗ trợ sử dụng",
+        3 => "Tư vấn mua hàng",
+        _ => "Chưa phân loại"
+    };
+
+    public class AgentTicketDetailDto
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int Priority { get; set; }
+        public int Status { get; set; }
+        public int? Category { get; set; }
+        public float? SentimentScore { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string UserEmail { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
+        public List<AttachmentDto>? Attachments { get; set; }
+    }
+
+    public class AttachmentDto
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+    }
+
+    public class CommentDto
+    {
+        public Guid Id { get; set; }
+        public string Content { get; set; } = string.Empty;
+        public bool IsFromAgent { get; set; }
+        public string SenderName { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    // Response DTOs để match với Backend API
+    public class TicketDetailResponse
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public Priority Priority { get; set; }
+        public Status Status { get; set; }
+        public Category? Category { get; set; }
+        public float? SentimentScore { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+        public Guid UserId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string UserEmail { get; set; } = string.Empty;
+        public string? AssignedToName { get; set; }
+        public string? AssignedToEmail { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public List<CommentResponse>? Comments { get; set; }
+    }
+
+    public class CommentResponse
+    {
+        public Guid Id { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid UserId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string UserEmail { get; set; } = string.Empty;
+        public bool IsFromAgent { get; set; }
+    }
+
+    public enum Priority { Low = 0, Medium = 1, High = 2 }
+    public enum Status { Open = 0, InProgress = 1, Closed = 2 }
+    public enum Category { Bug = 0, Feature = 1, Support = 2, Sale = 3 }
+}

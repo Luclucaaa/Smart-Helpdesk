@@ -323,12 +323,23 @@
                     await JS.InvokeVoidAsync("localStorage.setItem", "token", result.Token);
                     await JS.InvokeVoidAsync("localStorage.setItem", "userName", result.Name ?? "");
                     await JS.InvokeVoidAsync("localStorage.setItem", "userSurname", result.Surname ?? "");
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userRoles", string.Join(",", result.Roles));
                 }
                 successMessage = "Đăng nhập thành công! Đang chuyển hướng...";
                 isLoading = false;
                 StateHasChanged();
                 await Task.Delay(1500);
-                NavigationManager.NavigateTo("/customer", forceLoad: true);
+                
+                // Redirect theo role
+                var redirectUrl = "/customer"; // default
+                if (result?.Roles != null)
+                {
+                    if (result.Roles.Contains("Admin"))
+                        redirectUrl = "/admin";
+                    else if (result.Roles.Contains("Nhân viên"))
+                        redirectUrl = "/agent";
+                }
+                NavigationManager.NavigateTo(redirectUrl, forceLoad: true);
                 return;
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -438,5 +449,6 @@
         public string Token { get; set; } = "";
         public string Name { get; set; } = "";
         public string Surname { get; set; } = "";
+        public List<string> Roles { get; set; } = new();
     }
 }
