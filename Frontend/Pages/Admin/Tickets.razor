@@ -1,0 +1,408 @@
+@page "/admin/tickets"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<PageTitle>Tất cả yêu cầu hỗ trợ - Admin Panel</PageTitle>
+
+<div class="tickets-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-info">
+            <h1>Tất cả yêu cầu hỗ trợ</h1>
+            <p>Xem và quản lý toàn bộ yêu cầu hỗ trợ trong hệ thống</p>
+        </div>
+        <div class="header-stats">
+            <div class="stat-item open">
+                <span class="stat-value">@openCount</span>
+                <span class="stat-label">Mới</span>
+            </div>
+            <div class="stat-item in-progress">
+                <span class="stat-value">@inProgressCount</span>
+                <span class="stat-label">Đang xử lý</span>
+            </div>
+            <div class="stat-item closed">
+                <span class="stat-value">@closedCount</span>
+                <span class="stat-label">Đã đóng</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Bar -->
+    <div class="filters-section">
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm kiếm yêu cầu..." @bind="searchQuery" @bind:event="oninput" @bind:after="ApplyFilters" />
+        </div>
+        <div class="filters-row">
+            <div class="filter-group">
+                <label>Sản phẩm</label>
+                <select @bind="filterProduct" @bind:after="ApplyFilters">
+                    <option value="">Tất cả</option>
+                    @foreach (var product in products)
+                    {
+                        <option value="@product.Id">@product.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Trạng thái</label>
+                <select @bind="filterStatus" @bind:after="ApplyFilters">
+                    <option value="">Tất cả</option>
+                    <option value="0">Mới</option>
+                    <option value="1">Đang xử lý</option>
+                    <option value="2">Đã đóng</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Độ ưu tiên</label>
+                <select @bind="filterPriority" @bind:after="ApplyFilters">
+                    <option value="">Tất cả</option>
+                    <option value="2">Cao</option>
+                    <option value="1">Trung bình</option>
+                    <option value="0">Thấp</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Phân loại</label>
+                <select @bind="filterCategory" @bind:after="ApplyFilters">
+                    <option value="">Tất cả</option>
+                    <option value="0">Lỗi kỹ thuật</option>
+                    <option value="1">Yêu cầu tính năng</option>
+                    <option value="2">Hỗ trợ sử dụng</option>
+                    <option value="3">Tư vấn mua hàng</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tickets Table -->
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải dữ liệu...</p>
+        </div>
+    }
+    else if (filteredTickets.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <h3>Không có yêu cầu nào</h3>
+            <p>Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+        </div>
+    }
+    else
+    {
+        <div class="tickets-table-container">
+            <table class="tickets-table">
+                <thead>
+                    <tr>
+                        <th>Mã Ticket</th>
+                        <th>Khách hàng</th>
+                        <th>Mô tả</th>
+                        <th>Sản phẩm</th>
+                        <th>Phân loại</th>
+                        <th>Ưu tiên</th>
+                        <th>Trạng thái</th>
+                        <th>Ngày tạo</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ticket in filteredTickets)
+                    {
+                        <tr class="@(ticket.Priority == 2 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
+                            <td class="ticket-id">
+                                <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                @if (ticket.SentimentScore < 0.4)
+                                {
+                                    <span class="sentiment-warning" title="Cảm xúc tiêu cực">🔥</span>
+                                }
+                            </td>
+                            <td class="customer-info">
+                                <span class="customer-name">@ticket.UserName</span>
+                                <span class="customer-email">@ticket.UserEmail</span>
+                            </td>
+                            <td class="ticket-desc">
+                                <span class="desc-text">@TruncateText(ticket.Description, 50)</span>
+                            </td>
+                            <td>
+                                <span class="product-tag">@ticket.ProductName</span>
+                            </td>
+                            <td>
+                                <span class="category-badge @GetCategoryClass(ticket.Category)">
+                                    @GetCategoryText(ticket.Category)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="priority-badge @GetPriorityClass(ticket.Priority)">
+                                    @GetPriorityText(ticket.Priority)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="status-badge @GetStatusClass(ticket.Status)">
+                                    @GetStatusText(ticket.Status)
+                                </span>
+                            </td>
+                            <td class="date-cell">
+                                @ticket.CreatedAt.ToString("dd/MM/yyyy HH:mm")
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-btn view" title="Xem chi tiết" @onclick="() => ViewTicket(ticket.Id)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <button class="page-btn" disabled="@(currentPage <= 1)" @onclick="() => ChangePage(currentPage - 1)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="15 18 9 12 15 6"></polyline>
+                    </svg>
+                </button>
+                <span class="page-info">Trang @currentPage / @totalPages</span>
+                <button class="page-btn" disabled="@(currentPage >= totalPages)" @onclick="() => ChangePage(currentPage + 1)">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string searchQuery = "";
+    private string filterProduct = "";
+    private string filterStatus = "";
+    private string filterPriority = "";
+    private string filterCategory = "";
+
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int totalCount = 0;
+    private int totalPages => (int)Math.Ceiling((double)totalCount / pageSize);
+
+    private int openCount = 0;
+    private int inProgressCount = 0;
+    private int closedCount = 0;
+
+    private List<TicketDTO> allTickets = new();
+    private List<TicketDTO> filteredTickets = new();
+    private List<ProductDTO> products = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+        await LoadTickets();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<ProductDTO>>("api/products");
+            if (response != null)
+            {
+                products = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading products: {ex.Message}");
+        }
+    }
+
+    private async Task LoadTickets()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<TicketsResponse>("api/tickets?pageSize=1000");
+            if (response?.Data != null)
+            {
+                allTickets = response.Data;
+                totalCount = response.TotalCount;
+
+                openCount = allTickets.Count(t => t.Status == 0);
+                inProgressCount = allTickets.Count(t => t.Status == 1);
+                closedCount = allTickets.Count(t => t.Status == 2);
+
+                ApplyFilters();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading tickets: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var query = allTickets.AsEnumerable();
+
+        // Search
+        if (!string.IsNullOrEmpty(searchQuery))
+        {
+            var search = searchQuery.ToLower();
+            query = query.Where(t =>
+                t.Description.ToLower().Contains(search) ||
+                t.UserName.ToLower().Contains(search) ||
+                t.UserEmail.ToLower().Contains(search) ||
+                t.Id.ToString().ToLower().Contains(search));
+        }
+
+        // Product filter
+        if (!string.IsNullOrEmpty(filterProduct) && Guid.TryParse(filterProduct, out var productId))
+        {
+            query = query.Where(t => t.ProductId == productId);
+        }
+
+        // Status filter
+        if (!string.IsNullOrEmpty(filterStatus) && int.TryParse(filterStatus, out var status))
+        {
+            query = query.Where(t => t.Status == status);
+        }
+
+        // Priority filter
+        if (!string.IsNullOrEmpty(filterPriority) && int.TryParse(filterPriority, out var priority))
+        {
+            query = query.Where(t => t.Priority == priority);
+        }
+
+        // Category filter
+        if (!string.IsNullOrEmpty(filterCategory) && int.TryParse(filterCategory, out var category))
+        {
+            query = query.Where(t => t.Category == category);
+        }
+
+        // Apply pagination
+        filteredTickets = query
+            .OrderByDescending(t => t.CreatedAt)
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        totalCount = query.Count();
+    }
+
+    private async Task ChangePage(int page)
+    {
+        currentPage = page;
+        ApplyFilters();
+    }
+
+    private void ViewTicket(Guid id)
+    {
+        Navigation.NavigateTo($"/agent/tickets/{id}");
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "open",
+        1 => "in-progress",
+        2 => "closed",
+        _ => ""
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đang xử lý",
+        2 => "Đã đóng",
+        _ => "Không xác định"
+    };
+
+    private string GetPriorityClass(int priority) => priority switch
+    {
+        0 => "low",
+        1 => "medium",
+        2 => "high",
+        _ => ""
+    };
+
+    private string GetPriorityText(int priority) => priority switch
+    {
+        0 => "Thấp",
+        1 => "Trung bình",
+        2 => "Cao",
+        _ => "Không xác định"
+    };
+
+    private string GetCategoryClass(int? category) => category switch
+    {
+        0 => "bug",
+        1 => "feature",
+        2 => "support",
+        3 => "sale",
+        _ => ""
+    };
+
+    private string GetCategoryText(int? category) => category switch
+    {
+        0 => "Lỗi kỹ thuật",
+        1 => "Yêu cầu tính năng",
+        2 => "Hỗ trợ sử dụng",
+        3 => "Tư vấn mua hàng",
+        _ => "Chưa phân loại"
+    };
+
+    // DTOs
+    public class TicketsResponse
+    {
+        public List<TicketDTO> Data { get; set; } = new();
+        public int TotalCount { get; set; }
+    }
+
+    public class TicketDTO
+    {
+        public Guid Id { get; set; }
+        public string Description { get; set; } = "";
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int? Category { get; set; }
+        public float? SentimentScore { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string UserName { get; set; } = "";
+        public string UserEmail { get; set; } = "";
+        public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    public class ProductDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+}

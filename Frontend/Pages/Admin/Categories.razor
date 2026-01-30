@@ -1,0 +1,617 @@
+@page "/admin/categories"
+@layout AdminLayout
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Loại sản phẩm - Admin Panel</PageTitle>
+
+<div class="admin-page">
+    <div class="page-header">
+        <div class="header-content">
+            <h1>Loại sản phẩm</h1>
+            <p class="subtitle">Quản lý các loại sản phẩm trong hệ thống</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenCreateModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Thêm loại mới
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert @(isError ? "alert-error" : "alert-success")">
+            @message
+            <button class="alert-close" @onclick="() => message = null">×</button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Đang tải...</p>
+        </div>
+    }
+    else if (categories.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <line x1="12" y1="8" x2="12" y2="16"></line>
+                <line x1="8" y1="12" x2="16" y2="12"></line>
+            </svg>
+            <h3>Chưa có loại sản phẩm nào</h3>
+            <p>Bắt đầu bằng việc thêm loại sản phẩm đầu tiên</p>
+            <button class="btn-primary" @onclick="OpenCreateModal">Thêm loại mới</button>
+        </div>
+    }
+    else
+    {
+        <div class="categories-grid">
+            @foreach (var category in categories)
+            {
+                <div class="category-card @(category.IsActive ? "" : "inactive")">
+                    <div class="card-header">
+                        <div class="category-icon">
+                            📂
+                        </div>
+                        <span class="status-badge @(category.IsActive ? "active" : "inactive")">
+                            @(category.IsActive ? "Hoạt động" : "Tắt")
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <h3>@category.Name</h3>
+                        <p>@(string.IsNullOrEmpty(category.Description) ? "Chưa có mô tả" : category.Description)</p>
+                    </div>
+                    <div class="card-footer">
+                        <span class="product-count">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                            </svg>
+                            @category.ProductCount sản phẩm
+                        </span>
+                        <div class="card-actions">
+                            <button class="btn-icon" title="Sửa" @onclick="() => OpenEditModal(category)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button class="btn-icon danger" title="Xóa" @onclick="() => OpenDeleteModal(category)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Create/Edit Modal -->
+@if (showModal)
+{
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999999;" @onclick="CloseModal">
+        <div style="background:white;border-radius:16px;width:100%;max-width:480px;box-shadow:0 25px 50px rgba(0,0,0,0.25);" @onclick:stopPropagation>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid #e5e7eb;">
+                <h2 style="font-size:1.25rem;font-weight:600;margin:0;">@(isEditing ? "Chỉnh sửa loại sản phẩm" : "Thêm loại sản phẩm mới")</h2>
+                <button style="background:none;border:none;font-size:1.5rem;cursor:pointer;color:#9ca3af;" @onclick="CloseModal">×</button>
+            </div>
+            <div style="padding:24px;">
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;margin-bottom:6px;font-weight:500;color:#374151;">Tên loại <span style="color:#dc2626;">*</span></label>
+                    <input type="text" @bind="editingCategory.Name" placeholder="VD: Phần mềm, Phần cứng..." style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem;" />
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:block;margin-bottom:6px;font-weight:500;color:#374151;">Mô tả</label>
+                    <textarea @bind="editingCategory.Description" placeholder="Mô tả ngắn về loại sản phẩm" rows="2" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:0.95rem;"></textarea>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                        <input type="checkbox" @bind="editingCategory.IsActive" style="width:18px;height:18px;" />
+                        Đang hoạt động
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid #e5e7eb;background:#f9fafb;">
+                <button style="padding:10px 20px;background:white;border:1px solid #d1d5db;border-radius:8px;font-weight:500;cursor:pointer;" @onclick="CloseModal">Hủy</button>
+                <button style="padding:10px 20px;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:8px;font-weight:500;cursor:pointer;" @onclick="SaveCategory" disabled="@isSaving">
+                    @(isEditing ? "Cập nhật" : "Thêm mới")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Modal -->
+@if (showDeleteModal && deletingCategory != null)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal">
+        <div class="modal modal-small" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Xác nhận xóa</h2>
+                <button class="modal-close" @onclick="CloseDeleteModal">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Bạn có chắc chắn muốn xóa loại "<strong>@deletingCategory.Name</strong>"?</p>
+                @if (deletingCategory.ProductCount > 0)
+                {
+                    <p class="warning-text">⚠️ Có @deletingCategory.ProductCount sản phẩm sẽ không còn thuộc loại nào.</p>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" @onclick="CloseDeleteModal">Hủy</button>
+                <button class="btn-danger" @onclick="DeleteCategory" disabled="@isDeleting">
+                    @if (isDeleting) { <span class="spinner-small"></span> }
+                    Xóa
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .admin-page { padding: 0; }
+    
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    
+    .page-header h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        margin: 0;
+    }
+    
+    .page-header .subtitle {
+        color: var(--gray-500);
+        margin: 4px 0 0 0;
+        font-size: 0.9rem;
+    }
+    
+    .alert {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+    
+    .alert-error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .alert-success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .alert-close { background: none; border: none; font-size: 1.25rem; cursor: pointer; opacity: 0.7; }
+    
+    .btn-primary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+    
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 60px 20px;
+        color: var(--gray-500);
+    }
+    
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--gray-200);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 12px;
+        border: 2px dashed var(--gray-200);
+    }
+    
+    .empty-state svg { color: var(--gray-300); margin-bottom: 16px; }
+    .empty-state h3 { color: var(--gray-700); margin: 0 0 8px 0; }
+    .empty-state p { color: var(--gray-500); margin: 0 0 20px 0; }
+    
+    .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    
+    .category-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid var(--gray-200);
+        overflow: hidden;
+        transition: all 0.2s;
+    }
+    
+    .category-card:hover {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+    }
+    
+    .category-card.inactive { opacity: 0.6; }
+    
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 16px 16px 0;
+    }
+    
+    .category-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 500;
+    }
+    
+    .status-badge.active { background: #dcfce7; color: #16a34a; }
+    .status-badge.inactive { background: #f3f4f6; color: #6b7280; }
+    
+    .card-body { padding: 12px 16px; }
+    .card-body h3 { font-size: 1rem; font-weight: 600; margin: 0 0 4px 0; color: var(--gray-900); }
+    .card-body p { font-size: 0.85rem; color: var(--gray-500); margin: 0; line-height: 1.4; }
+    
+    .card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-top: 1px solid var(--gray-100);
+        background: var(--gray-50);
+    }
+    
+    .product-count {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.85rem;
+        color: var(--gray-500);
+    }
+    
+    .card-actions { display: flex; gap: 6px; }
+    
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        border: 1px solid var(--gray-200);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--gray-600);
+    }
+    
+    .btn-icon:hover { background: var(--gray-100); }
+    .btn-icon.danger:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+    
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+    }
+    
+    .modal {
+        background: white;
+        border-radius: 16px;
+        width: 100%;
+        max-width: 480px;
+        animation: modalSlideIn 0.2s ease-out;
+        z-index: 10000;
+    }
+    
+    .modal-small { max-width: 400px; }
+    
+    @@keyframes modalSlideIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--gray-200);
+    }
+    
+    .modal-header h2 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+    .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--gray-400); }
+    
+    .modal-body { padding: 24px; }
+    
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: var(--gray-700); font-size: 0.9rem; }
+    .form-group .required { color: #dc2626; }
+    
+    .form-group input[type="text"],
+    .form-group input[type="number"],
+    .form-group textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--gray-300);
+        border-radius: 8px;
+        font-size: 0.95rem;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+    
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    
+    .color-picker { display: flex; gap: 8px; }
+    .color-picker input[type="color"] { width: 44px; height: 38px; padding: 2px; border: 1px solid var(--gray-300); border-radius: 6px; cursor: pointer; }
+    .color-picker input[type="text"] { flex: 1; }
+    
+    .checkbox-group { display: flex; align-items: center; height: 38px; margin-top: 24px; }
+    .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: normal !important; }
+    .checkbox-label input { width: 18px; height: 18px; }
+    
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 16px 24px;
+        border-top: 1px solid var(--gray-200);
+        background: var(--gray-50);
+    }
+    
+    .btn-secondary {
+        padding: 10px 20px;
+        background: white;
+        border: 1px solid var(--gray-300);
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    
+    .btn-danger {
+        padding: 10px 20px;
+        background: #dc2626;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+    }
+    
+    .warning-text { color: #dc2626; font-size: 0.875rem; margin-top: 8px; }
+    
+    .spinner-small {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-right: 8px;
+    }
+    
+    @@media (max-width: 640px) {
+        .form-row { grid-template-columns: 1fr; }
+        .categories-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+@code {
+    private List<CategoryDto> categories = new();
+    private CategoryDto editingCategory = new();
+    private CategoryDto? deletingCategory;
+    
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    private string? message;
+    private bool isError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+    }
+
+    private async Task LoadCategories()
+    {
+        isLoading = true;
+        try
+        {
+            categories = await Http.GetFromJsonAsync<List<CategoryDto>>("api/productcategories") ?? new();
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Lỗi: {ex.Message}", true);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateModal()
+    {
+        isEditing = false;
+        editingCategory = new CategoryDto { IsActive = true };
+        showModal = true;
+    }
+
+    private void OpenEditModal(CategoryDto category)
+    {
+        isEditing = true;
+        editingCategory = new CategoryDto
+        {
+            Id = category.Id,
+            Name = category.Name,
+            Description = category.Description,
+            IsActive = category.IsActive
+        };
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+
+    private void OpenDeleteModal(CategoryDto category)
+    {
+        deletingCategory = category;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal() => showDeleteModal = false;
+
+    private void ShowMessage(string msg, bool error = false)
+    {
+        message = msg;
+        isError = error;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (string.IsNullOrWhiteSpace(editingCategory.Name))
+        {
+            ShowMessage("Vui lòng nhập tên loại sản phẩm", true);
+            return;
+        }
+
+        isSaving = true;
+        message = null;
+
+        try
+        {
+            HttpResponseMessage response;
+            if (isEditing)
+            {
+                response = await Http.PutAsJsonAsync($"api/productcategories/{editingCategory.Id}", editingCategory);
+            }
+            else
+            {
+                response = await Http.PostAsJsonAsync("api/productcategories", editingCategory);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                ShowMessage(isEditing ? "Cập nhật thành công!" : "Thêm mới thành công!");
+                await LoadCategories();
+                CloseModal();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                ShowMessage($"Lỗi: {error}", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Lỗi: {ex.Message}", true);
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteCategory()
+    {
+        if (deletingCategory == null) return;
+
+        isDeleting = true;
+        message = null;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/productcategories/{deletingCategory.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                ShowMessage("Xóa thành công!");
+                await LoadCategories();
+                CloseDeleteModal();
+            }
+            else
+            {
+                ShowMessage("Không thể xóa loại sản phẩm", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"Lỗi: {ex.Message}", true);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    public class CategoryDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsActive { get; set; } = true;
+        public int ProductCount { get; set; }
+    }
+}

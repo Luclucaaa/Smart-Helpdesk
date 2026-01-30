@@ -39,13 +39,64 @@ namespace SmartHelpdesk.Controllers
             _updateTicketValidator = updateTicketValidator;
         }
 
+        [HttpGet("DebugMyInfo")]
+        [Authorize]
+        public async Task<IActionResult> DebugMyInfo()
+        {
+            var allClaims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+            
+            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("sub")?.Value;
+            
+            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            
+            // Lấy tất cả tickets trong database
+            var allTicketsCount = await _ticketsService.GetTickets(new TicketsQueryFilters { Take = 1000, Skip = 0 });
+            
+            // Lấy tickets của user này
+            var myTickets = user != null 
+                ? await _ticketsService.GetTickets(new TicketsQueryFilters { Take = 1000, Skip = 0, UserId = user.Id })
+                : null;
+            
+            return Ok(new 
+            {
+                Claims = allClaims,
+                EmailFromToken = currentUserEmail,
+                UserFound = user != null,
+                UserId = user?.Id,
+                UserEmail = user?.Email,
+                UserName = user?.Name,
+                AllTicketsTotal = allTicketsCount.Total,
+                MyTicketsTotal = myTickets?.Total ?? 0,
+                MyTicketsList = myTickets?.Tickets?.Select(t => new { t.Id, t.Description, t.UserId }).ToList()
+            });
+        }
+
         [HttpGet("GetTickets")]
-        [Authorize(Roles = "Admin,Nhân viên")]
+        [Authorize(Roles = "Admin,Agent")]
         public async Task<IActionResult> GetTickets([FromQuery]TicketsQueryFilters filters)
         {
             var tickets = await _ticketsService.GetTickets(filters);
 
             return Ok(tickets);
+        }
+
+        [HttpGet("GetMyTickets")]
+        [Authorize]
+        public async Task<IActionResult> GetMyTickets([FromQuery]TicketsQueryFilters filters)
+        {
+            // DEBUG: Trả về raw data không qua AutoMapper
+            try
+            {
+                var tickets = await _ticketsService.GetTicketsRaw(filters.Take, filters.Skip);
+                return Ok(tickets);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR GetMyTickets: {ex.Message}");
+                Console.WriteLine($"Stack: {ex.StackTrace}");
+                return StatusCode(500, new { error = ex.Message, stack = ex.StackTrace });
+            }
         }
 
         [HttpGet("TicketDetails/{id}")]
@@ -74,8 +125,19 @@ namespace SmartHelpdesk.Controllers
         }
 
         [HttpPost("CreateTicket")]
+        [Authorize]
         public async Task<IActionResult> CreateTicket(CreateTicketDTO ticketDTO)
         {
+            // Tự động lấy UserId từ token
+            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            if (user == null)
+            {
+                return Unauthorized("Vui lòng đăng nhập để gửi yêu cầu");
+            }
+            
+            ticketDTO.UserId = user.Id;
+            
             var validationRes = _createTicketValidator.Validate(ticketDTO);
             if (!validationRes.IsValid)
                 return BadRequest(validationRes);

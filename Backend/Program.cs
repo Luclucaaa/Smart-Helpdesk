@@ -92,7 +92,7 @@ using (var scope = app.Services.CreateScope())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     
     // Seed Roles
-    string[] roleNames = { "Admin", "Nhân viên", "Customer" };
+    string[] roleNames = { "Admin", "Agent", "Customer" };
     
     foreach (var roleName in roleNames)
     {
@@ -100,6 +100,21 @@ using (var scope = app.Services.CreateScope())
         {
             await roleManager.CreateAsync(new Role { Name = roleName });
         }
+    }
+    
+    // Chuyển users từ role "Nhân viên" sang "Agent" nếu có
+    var nhanvienRole = await roleManager.FindByNameAsync("Nhân viên");
+    if (nhanvienRole != null)
+    {
+        // Lấy tất cả users có role "Nhân viên"
+        var usersInOldRole = await userManager.GetUsersInRoleAsync("Nhân viên");
+        foreach (var u in usersInOldRole)
+        {
+            await userManager.RemoveFromRoleAsync(u, "Nhân viên");
+            await userManager.AddToRoleAsync(u, "Agent");
+        }
+        // Xóa role cũ
+        await roleManager.DeleteAsync(nhanvienRole);
     }
     
     // Xóa role "Support" nếu tồn tại (đã đổi sang "Nhân viên")
@@ -145,7 +160,7 @@ using (var scope = app.Services.CreateScope())
         var result = await userManager.CreateAsync(staffUser, "Nhanvien@123");
         if (result.Succeeded)
         {
-            await userManager.AddToRoleAsync(staffUser, "Nhân viên");
+            await userManager.AddToRoleAsync(staffUser, "Agent");
         }
     }
 }

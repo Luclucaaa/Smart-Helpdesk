@@ -29,6 +29,15 @@ namespace SmartHelpdesk.Services
             var newTicket = _mapper.Map<CreateTicketDTO, Ticket>(ticketDTO);
             newTicket.CreatedAt = DateTimeOffset.Now;
             newTicket.Status = Status.Open;
+            
+            // Tự động tạo Title nếu không có
+            if (string.IsNullOrWhiteSpace(newTicket.Title))
+            {
+                // Lấy 50 ký tự đầu của Description làm Title
+                newTicket.Title = newTicket.Description.Length > 50 
+                    ? newTicket.Description.Substring(0, 50) + "..." 
+                    : newTicket.Description;
+            }
 
             _context.Tickets.Add(newTicket);
             await _context.SaveChangesAsync();
@@ -69,12 +78,21 @@ namespace SmartHelpdesk.Services
 
         private async Task<FilteredTicketsDTO> ApplyFilters(TicketsQueryFilters filters)
         {
+            Console.WriteLine($"DEBUG ApplyFilters START: UserId = {filters.UserId}");
+            
             var query = _context.Tickets
                 .Include(ticket => ticket.User)
                 .Include(ticket => ticket.AssignedTo)
                 .Include(ticket => ticket.Product)
                 .Include(ticket => ticket.Comments)
                 .AsQueryable();
+
+            // Áp dụng filter UserId TRƯỚC
+            if (filters.UserId != null)
+            {
+                Console.WriteLine($"DEBUG: Filtering by UserId = {filters.UserId}");
+                query = query.Where(t => t.UserId == filters.UserId);
+            }
 
             if (!string.IsNullOrWhiteSpace(filters.SortColumn) && !string.IsNullOrWhiteSpace(filters.Order))
             {
@@ -98,26 +116,33 @@ namespace SmartHelpdesk.Services
                 query = query.Where(t => t.Status == filters.Status);
             }
 
-            if (filters.UserId != null)
-            {
-                query = query.Where(t => t.UserId == filters.UserId);
-            }
-
             if (filters.AsignedToId != null)
             {
                 query = query.Where(t => t.AssignedToId == filters.AsignedToId);
             }
 
+            // Đếm TOTAL sau khi đã áp dụng tất cả filter
             var total = await query.CountAsync();
             var take = filters.Take;
             var skip = filters.Skip;
 
+            Console.WriteLine($"DEBUG Service: Total after filter = {total}, Take = {take}, Skip = {skip}");
+
             var tickets = await query
+                .OrderByDescending(t => t.CreatedAt)
                 .Skip(skip)
                 .Take(take)
                 .ToListAsync();
 
+            Console.WriteLine($"DEBUG Service: Fetched {tickets.Count} tickets");
+            foreach (var t in tickets)
+            {
+                Console.WriteLine($"DEBUG Service: Ticket {t.Id} - User {t.UserId}");
+            }
+
             var ticketsDTOs = _mapper.Map<List<Ticket>, List<TicketDTO>>(tickets);
+
+            Console.WriteLine($"DEBUG Service: Mapped to {ticketsDTOs.Count} DTOs");
 
 
             var filteredTickets = new FilteredTicketsDTO
@@ -136,6 +161,41 @@ namespace SmartHelpdesk.Services
             var filteredTickets = await ApplyFilters(filters);
 
             return filteredTickets;
+        }
+
+        public async Task<object> GetTicketsRaw(int take, int skip)
+        {
+            Console.WriteLine($"DEBUG GetTicketsRaw: take={take}, skip={skip}");
+            
+            var total = await _context.Tickets.CountAsync();
+            Console.WriteLine($"DEBUG GetTicketsRaw: total count = {total}");
+            
+            var tickets = await _context.Tickets
+                .OrderByDescending(t => t.CreatedAt)
+                .Skip(skip)
+                .Take(take)
+                .Select(t => new 
+                {
+                    t.Id,
+                    t.Title,
+                    t.Description,
+                    Status = (int)t.Status,
+                    Priority = (int)t.Priority,
+                    t.ProductName,
+                    t.CreatedAt,
+                    t.UserId
+                })
+                .ToListAsync();
+            
+            Console.WriteLine($"DEBUG GetTicketsRaw: fetched {tickets.Count} tickets");
+            
+            return new 
+            {
+                take,
+                skip,
+                total,
+                tickets
+            };
         }
 
         public async Task UpdateTicket(Guid id, UpdateTicketDTO ticketDTO)

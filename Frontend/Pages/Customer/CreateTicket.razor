@@ -2,6 +2,7 @@
 @layout CustomerLayout
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="create-ticket-container">
     <div class="form-card">
@@ -21,44 +22,37 @@
         <EditForm Model="@ticketModel" OnValidSubmit="@HandleSubmit" class="ticket-form">
             <DataAnnotationsValidator />
             
-            <!-- Product Selection -->
+            <!-- Description - Đưa lên trên cùng -->
             <div class="form-group">
-                <label class="form-label">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-                    </svg>
-                    Sản phẩm đang sử dụng
-                </label>
-                <InputSelect @bind-Value="ticketModel.ProductId" class="form-control">
-                    <option value="">-- Chọn sản phẩm --</option>
-                    @if (products != null)
-                    {
-                        @foreach (var product in products)
-                        {
-                            <option value="@product.Id">@product.Name</option>
-                        }
-                    }
-                </InputSelect>
-                <ValidationMessage For="@(() => ticketModel.ProductId)" class="validation-message" />
-            </div>
-
-            <!-- Description -->
-            <div class="form-group">
-                <label class="form-label">
+                <label class="form-label required">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                         <polyline points="14 2 14 8 20 8"></polyline>
                         <line x1="16" y1="13" x2="8" y2="13"></line>
                         <line x1="16" y1="17" x2="8" y2="17"></line>
                     </svg>
-                    Mô tả vấn đề
+                    Mô tả vấn đề <span class="required-mark">*</span>
                 </label>
                 <InputTextArea @bind-Value="ticketModel.Description" 
                                class="form-control textarea" 
-                               placeholder="Vui lòng mô tả chi tiết vấn đề bạn đang gặp phải...&#10;&#10;Ví dụ:&#10;- Lỗi xảy ra khi nào?&#10;- Các bước để tái hiện lỗi?&#10;- Thông báo lỗi (nếu có)?" 
-                               rows="8" />
-                <ValidationMessage For="@(() => ticketModel.Description)" class="validation-message" />
+                               placeholder="Vui lòng mô tả chi tiết vấn đề bạn đang gặp phải..." 
+                               rows="6" />
                 <span class="char-count">@(ticketModel.Description?.Length ?? 0) / 2000</span>
+            </div>
+
+            <!-- Product Name - Đưa xuống dưới, là input text tùy chọn -->
+            <div class="form-row">
+                <div class="form-group half">
+                    <label class="form-label">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        </svg>
+                        Sản phẩm đang sử dụng <span class="optional-label">(tùy chọn)</span>
+                    </label>
+                    <InputText @bind-Value="ticketModel.ProductName" 
+                               class="form-control" 
+                               placeholder="Ví dụ: Smart ERP, Smart CRM..." />
+                </div>
             </div>
 
             <!-- File Attachment -->
@@ -67,15 +61,14 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
                     </svg>
-                    Đính kèm ảnh/file (tùy chọn)
+                    Đính kèm ảnh/file <span class="optional-label">(tùy chọn)</span>
                 </label>
                 <div class="file-upload-area" @onclick="TriggerFileInput">
-                    <input type="file" 
-                           @ref="fileInput" 
-                           @onchange="HandleFileSelected" 
-                           accept="image/*,.pdf,.doc,.docx" 
-                           multiple 
-                           style="display: none;" />
+                    <InputFile @ref="fileInputRef" 
+                               OnChange="HandleFileSelected" 
+                               accept="image/*,.pdf,.doc,.docx" 
+                               multiple 
+                               style="display: none;" />
                     
                     @if (selectedFiles.Count == 0)
                     {
@@ -190,46 +183,27 @@
 
 @code {
     private CreateTicketModel ticketModel = new();
-    private List<ProductDto> products = new();
     private List<IBrowserFile> selectedFiles = new();
-    private ElementReference fileInput;
+    private InputFile? fileInputRef;
     private bool isSubmitting = false;
     private bool isSuccess = false;
     private string? errorMessage;
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadProducts();
-    }
-
-    private async Task LoadProducts()
-    {
-        try
-        {
-            // TODO: Load products from API
-            products = new List<ProductDto>
-            {
-                new ProductDto { Id = Guid.NewGuid(), Name = "Smart ERP" },
-                new ProductDto { Id = Guid.NewGuid(), Name = "Smart CRM" },
-                new ProductDto { Id = Guid.NewGuid(), Name = "Smart POS" }
-            };
-            await Task.CompletedTask;
-        }
-        catch (Exception ex)
-        {
-            errorMessage = "Không thể tải danh sách sản phẩm: " + ex.Message;
-        }
-    }
-
     private async Task TriggerFileInput()
     {
-        // This will be handled by JS interop if needed
+        // Trigger file input click via JS
         await Task.CompletedTask;
     }
 
-    private void HandleFileSelected(ChangeEventArgs e)
+    private void HandleFileSelected(InputFileChangeEventArgs e)
     {
-        // Handle file selection
+        foreach (var file in e.GetMultipleFiles(10))
+        {
+            if (file.Size <= 10 * 1024 * 1024) // Max 10MB
+            {
+                selectedFiles.Add(file);
+            }
+        }
     }
 
     private void RemoveFile(IBrowserFile file)
@@ -246,12 +220,7 @@
 
     private async Task HandleSubmit()
     {
-        if (string.IsNullOrEmpty(ticketModel.ProductId))
-        {
-            errorMessage = "Vui lòng chọn sản phẩm";
-            return;
-        }
-
+        // Validation - chỉ Description là bắt buộc
         if (string.IsNullOrWhiteSpace(ticketModel.Description))
         {
             errorMessage = "Vui lòng mô tả vấn đề của bạn";
@@ -263,12 +232,35 @@
             isSubmitting = true;
             errorMessage = null;
 
-            // TODO: Submit to API
-            await Task.Delay(1500); // Simulate API call
+            // Lấy token từ localStorage
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "token");
+            if (!string.IsNullOrEmpty(token))
+            {
+                Http.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
 
-            isSuccess = true;
-            await Task.Delay(2000);
-            Navigation.NavigateTo("/customer/my-tickets");
+            // Gửi request tạo ticket
+            var response = await Http.PostAsJsonAsync("api/Tickets/CreateTicket", new
+            {
+                Description = ticketModel.Description,
+                ProductName = ticketModel.ProductName,  // Có thể null
+                Priority = 1  // Medium mặc định
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                isSuccess = true;
+                StateHasChanged();
+                await Task.Delay(1500);
+                Navigation.NavigateTo("/customer/my-tickets");
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                errorMessage = "Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.";
+                Console.WriteLine($"Error: {error}");
+            }
         }
         catch (Exception ex)
         {
@@ -282,13 +274,7 @@
 
     public class CreateTicketModel
     {
-        public string? ProductId { get; set; }
         public string? Description { get; set; }
-    }
-
-    public class ProductDto
-    {
-        public Guid Id { get; set; }
-        public string Name { get; set; } = string.Empty;
+        public string? ProductName { get; set; }
     }
 }

@@ -1,0 +1,217 @@
+@page "/admin/settings"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<PageTitle>Cài đặt Hệ thống - Admin Panel</PageTitle>
+
+<div class="settings-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-info">
+            <h1>Cài đặt Hệ thống</h1>
+            <p>Cấu hình và tùy chỉnh hệ thống Smart Helpdesk</p>
+        </div>
+    </div>
+
+    <!-- Settings Sections -->
+    <div class="settings-grid">
+        <!-- General Settings -->
+        <div class="settings-card">
+            <div class="card-header">
+                <div class="card-icon general">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                </div>
+                <div class="card-title">
+                    <h3>Cài đặt chung</h3>
+                    <span>Cấu hình cơ bản của hệ thống</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Tên hệ thống</span>
+                        <span class="setting-desc">Tên hiển thị trên giao diện</span>
+                    </div>
+                    <input type="text" class="setting-input" value="Smart Helpdesk" disabled />
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Email hỗ trợ</span>
+                        <span class="setting-desc">Email liên hệ cho khách hàng</span>
+                    </div>
+                    <input type="email" class="setting-input" value="support@smarthelpdesk.vn" disabled />
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Múi giờ</span>
+                        <span class="setting-desc">Múi giờ mặc định của hệ thống</span>
+                    </div>
+                    <select class="setting-select" disabled>
+                        <option selected>UTC+7 (Việt Nam)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket Settings -->
+        <div class="settings-card">
+            <div class="card-header">
+                <div class="card-icon tickets">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                </div>
+                <div class="card-title">
+                    <h3>Cài đặt Ticket</h3>
+                    <span>Tùy chỉnh cách xử lý ticket</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Tự động gán ticket</span>
+                        <span class="setting-desc">Tự động gán ticket cho nhân viên rảnh</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Thời gian SLA mặc định</span>
+                        <span class="setting-desc">Thời gian xử lý tối đa (giờ)</span>
+                    </div>
+                    <input type="number" class="setting-input small" value="24" disabled />
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Cho phép đính kèm file</span>
+                        <span class="setting-desc">Khách hàng có thể đính kèm file</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Settings (Placeholder for future) -->
+        <div class="settings-card">
+            <div class="card-header">
+                <div class="card-icon ai">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2z"></path>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                </div>
+                <div class="card-title">
+                    <h3>Cài đặt AI</h3>
+                    <span>Cấu hình phân tích AI (ML.NET)</span>
+                </div>
+                <span class="coming-soon-badge">Sắp ra mắt</span>
+            </div>
+            <div class="card-content disabled">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Phân tích cảm xúc</span>
+                        <span class="setting-desc">Tự động phân tích cảm xúc khách hàng</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Phân loại tự động</span>
+                        <span class="setting-desc">Tự động phân loại ticket</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Ngưỡng cảm xúc tiêu cực</span>
+                        <span class="setting-desc">Score dưới ngưỡng = ưu tiên cao</span>
+                    </div>
+                    <input type="number" class="setting-input small" value="0.4" step="0.1" disabled />
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Settings -->
+        <div class="settings-card">
+            <div class="card-header">
+                <div class="card-icon notifications">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                </div>
+                <div class="card-title">
+                    <h3>Thông báo</h3>
+                    <span>Cài đặt email và thông báo</span>
+                </div>
+            </div>
+            <div class="card-content">
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Gửi email khi tạo ticket</span>
+                        <span class="setting-desc">Thông báo cho khách khi tạo ticket</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Gửi email khi có phản hồi</span>
+                        <span class="setting-desc">Thông báo khi nhân viên phản hồi</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-info">
+                        <span class="setting-name">Gửi email khi đóng ticket</span>
+                        <span class="setting-desc">Thông báo khi ticket được đóng</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" checked disabled />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Note -->
+    <div class="info-note">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <span>Các cài đặt đang ở chế độ xem trước. Tính năng chỉnh sửa sẽ được kích hoạt trong các phiên bản tiếp theo.</span>
+    </div>
+</div>
+
+@code {
+    // Placeholder for future settings management
+}

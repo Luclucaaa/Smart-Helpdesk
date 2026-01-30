@@ -2,6 +2,7 @@
 @layout CustomerLayout
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
 <div class="my-tickets-container">
     <!-- Header -->
@@ -175,12 +176,63 @@
         isLoading = true;
         try
         {
-            // TODO: Load from API
-            await Task.Delay(500); // Simulate loading
+            Console.WriteLine("DEBUG Frontend: Loading tickets...");
             
-            // Danh sách rỗng - sẽ load từ API sau
+            // Lấy token để debug
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "token");
+            Console.WriteLine($"DEBUG Frontend: Token exists = {!string.IsNullOrEmpty(token)}");
+            Console.WriteLine($"DEBUG Frontend: Token (first 50 chars) = {(token?.Length > 50 ? token.Substring(0, 50) : token)}...");
+            
+            // Gọi API với raw HttpResponseMessage để debug
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/Tickets/GetMyTickets?Take=1000&Skip=0");
+            var httpResponse = await Http.SendAsync(request);
+            
+            Console.WriteLine($"DEBUG Frontend: Response Status = {httpResponse.StatusCode}");
+            
+            var responseContent = await httpResponse.Content.ReadAsStringAsync();
+            Console.WriteLine($"DEBUG Frontend: Response Body (first 200 chars) = {(responseContent?.Length > 200 ? responseContent.Substring(0, 200) : responseContent)}");
+            
+            if (httpResponse.IsSuccessStatusCode)
+            {
+                var response = System.Text.Json.JsonSerializer.Deserialize<FilteredTicketsResponse>(responseContent, new System.Text.Json.JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                
+                Console.WriteLine($"DEBUG Frontend: Deserialized, Tickets count = {response?.Tickets?.Count ?? 0}, Total = {response?.Total ?? 0}");
+                
+                if (response?.Tickets != null)
+                {
+                    tickets = response.Tickets.Select(t => new TicketDto
+                    {
+                        Id = t.Id,
+                        Description = t.Description ?? "",
+                        Status = t.Status,
+                        ProductName = t.ProductName ?? "",
+                        CreatedAt = t.CreatedAt.DateTime,
+                        HasNewReply = false
+                    }).ToList();
+                    Console.WriteLine($"DEBUG Frontend: Mapped {tickets.Count} tickets");
+                }
+                else
+                {
+                    Console.WriteLine("DEBUG Frontend: Response or Tickets is null");
+                    tickets = new List<TicketDto>();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"DEBUG Frontend: API returned error {httpResponse.StatusCode}: {responseContent}");
+                tickets = new List<TicketDto>();
+            }
+            
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"DEBUG Frontend Error: {ex.GetType().Name} - {ex.Message}");
+            Console.WriteLine($"DEBUG Frontend Stack: {ex.StackTrace}");
             tickets = new List<TicketDto>();
-            
             ApplyFilters();
         }
         finally
@@ -261,5 +313,24 @@
         public string ProductName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
         public bool HasNewReply { get; set; }
+    }
+    
+    public class FilteredTicketsResponse
+    {
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public int Total { get; set; }
+        public List<TicketResponse> Tickets { get; set; } = new();
+    }
+    
+    public class TicketResponse
+    {
+        public Guid Id { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public string? ProductName { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
     }
 }

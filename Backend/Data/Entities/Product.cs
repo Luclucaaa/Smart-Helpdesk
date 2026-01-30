@@ -8,7 +8,11 @@ namespace SmartHelpdesk.Data.Entities
         public DateTimeOffset CreatedAt { get; set; }
         public bool IsActive { get; set; } = true;
         
+        // Foreign Key
+        public Guid? CategoryId { get; set; }
+        
         // Navigation
+        public ProductCategory? Category { get; set; }
         public List<Ticket> Tickets { get; set; } = new List<Ticket>();
     }
 }

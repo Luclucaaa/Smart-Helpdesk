@@ -213,10 +213,10 @@
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
 }
 
-/* Tickets List */
+/* Tickets List - Hiển thị 2 cột */
 .tickets-list {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
 }
 
@@ -227,6 +227,7 @@
     text-decoration: none;
     transition: all 0.3s ease;
     border: 1px solid transparent;
+    max-width: 100%;
 }
 
 .ticket-item:hover {
@@ -324,6 +325,10 @@
     }
     
     .actions-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .tickets-list {
         grid-template-columns: 1fr;
     }
 }

@@ -26,13 +26,13 @@ namespace SmartHelpdesk.Common.Mappings
                 .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => src.User.Email))
                 .ForMember(dest => dest.AssignedToEmail, opt => opt.MapFrom(src => src.AssignedTo == null ? null : src.AssignedTo.Email))
                 .ForMember(dest => dest.AssignedToName, opt => opt.MapFrom(src => src.AssignedTo == null ? null : src.AssignedTo.Name))
-                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name));
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product == null ? src.ProductName : src.Product.Name));
             CreateMap<Ticket, TicketDetailsDTO>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.Name))
                 .ForMember(dest => dest.UserEmail, opt => opt.MapFrom(src => src.User.Email))
                 .ForMember(dest => dest.AssignedToEmail, opt => opt.MapFrom(src => src.AssignedTo == null ? null : src.AssignedTo.Email))
                 .ForMember(dest => dest.AssignedToName, opt => opt.MapFrom(src => src.AssignedTo == null ? null : src.AssignedTo.Name))
-                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name));
+                .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product == null ? src.ProductName : src.Product.Name));
 
             CreateMap<Attachment, AttachmentDTO>();
         }

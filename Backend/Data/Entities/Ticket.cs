@@ -18,12 +18,13 @@ namespace SmartHelpdesk.Data.Entities
         // Foreign Keys
         public Guid UserId { get; set; }
         public Guid? AssignedToId { get; set; }
-        public Guid ProductId { get; set; }  // Liên kết với sản phẩm
+        public Guid? ProductId { get; set; }  // Liên kết với sản phẩm (tùy chọn)
+        public string? ProductName { get; set; }  // Tên sản phẩm do khách hàng nhập (tùy chọn)
         
         // Navigation
         public User User { get; set; } = null!;
         public User? AssignedTo { get; set; }
-        public Product Product { get; set; } = null!;
+        public Product? Product { get; set; }
         public List<Comment> Comments { get; set; } = new List<Comment>();
     }
 }

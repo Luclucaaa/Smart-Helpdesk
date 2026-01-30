@@ -1,0 +1,414 @@
+@page "/admin/users"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<PageTitle>Quản lý Người dùng - Admin Panel</PageTitle>
+
+<div class="users-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-info">
+            <h1>Quản lý Người dùng</h1>
+            <p>Xem và quản lý tất cả người dùng trong hệ thống</p>
+        </div>
+        <div class="header-stats">
+            <div class="stat-item">
+                <span class="stat-value">@totalUsers</span>
+                <span class="stat-label">Tổng người dùng</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">@agentCount</span>
+                <span class="stat-label">Nhân viên hỗ trợ</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value">@customerCount</span>
+                <span class="stat-label">Khách hàng</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm kiếm theo tên hoặc email..." @bind="searchQuery" @bind:event="oninput" @bind:after="FilterUsers" />
+        </div>
+        <div class="filter-group">
+            <label>Vai trò:</label>
+            <select @bind="filterRole" @bind:after="FilterUsers">
+                <option value="">Tất cả</option>
+                <option value="Admin">Quản trị viên</option>
+                <option value="Agent">Nhân viên hỗ trợ</option>
+                <option value="Customer">Khách hàng</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải dữ liệu...</p>
+        </div>
+    }
+    else if (filteredUsers.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <h3>Không tìm thấy người dùng</h3>
+            <p>Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+        </div>
+    }
+    else
+    {
+        <div class="users-table-container">
+            <table class="users-table">
+                <thead>
+                    <tr>
+                        <th>Người dùng</th>
+                        <th>Email</th>
+                        <th>Vai trò</th>
+                        <th>Ticket đã tạo</th>
+                        <th>Ticket được gán</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in filteredUsers)
+                    {
+                        <tr>
+                            <td class="user-cell">
+                                <div class="user-avatar @GetRoleColor(user.Role)">
+                                    @GetInitials(user.Name, user.Surname)
+                                </div>
+                                <div class="user-info">
+                                    <span class="user-name">@user.Name @user.Surname</span>
+                                    <span class="user-id">ID: @user.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="user-email">@user.Email</span>
+                            </td>
+                            <td>
+                                <span class="role-badge @GetRoleColor(user.Role)">
+                                    @GetRoleText(user.Role)
+                                </span>
+                            </td>
+                            <td class="center">
+                                <span class="ticket-count">@user.CreatedTicketsCount</span>
+                            </td>
+                            <td class="center">
+                                <span class="ticket-count">@user.AssignedTicketsCount</span>
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <button class="action-btn view" title="Xem chi tiết" @onclick="() => ViewUserDetail(user)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                        </svg>
+                                    </button>
+                                    <button class="action-btn edit" title="Đổi vai trò" @onclick="() => OpenRoleModal(user)">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- User Detail Modal -->
+@if (showDetailModal && selectedUser != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetailModal">
+        <div class="modal-content detail-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Thông tin người dùng</h2>
+                <button class="close-btn" @onclick="CloseDetailModal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="user-profile">
+                    <div class="profile-avatar @GetRoleColor(selectedUser.Role)">
+                        @GetInitials(selectedUser.Name, selectedUser.Surname)
+                    </div>
+                    <div class="profile-info">
+                        <h3>@selectedUser.Name @selectedUser.Surname</h3>
+                        <span class="role-badge @GetRoleColor(selectedUser.Role)">@GetRoleText(selectedUser.Role)</span>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <div class="detail-item">
+                        <span class="detail-label">Email</span>
+                        <span class="detail-value">@selectedUser.Email</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">ID người dùng</span>
+                        <span class="detail-value">@selectedUser.Id</span>
+                    </div>
+                </div>
+
+                <div class="stats-section">
+                    <div class="stat-box">
+                        <span class="stat-number">@selectedUser.CreatedTicketsCount</span>
+                        <span class="stat-text">Ticket đã tạo</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-number">@selectedUser.AssignedTicketsCount</span>
+                        <span class="stat-text">Ticket được gán</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Change Role Modal -->
+@if (showRoleModal && selectedUser != null)
+{
+    <div class="modal-overlay" @onclick="CloseRoleModal">
+        <div class="modal-content role-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>Thay đổi vai trò</h2>
+                <button class="close-btn" @onclick="CloseRoleModal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="role-user-info">
+                    Thay đổi vai trò cho <strong>@selectedUser.Name @selectedUser.Surname</strong>
+                </p>
+                
+                <div class="role-options">
+                    <label class="role-option @(newRole == "Admin" ? "selected" : "")">
+                        <input type="radio" name="role" value="Admin" @onchange="@(() => newRole = "Admin")" checked="@(newRole == "Admin")" />
+                        <div class="role-card admin">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                            <span class="role-name">Quản trị viên</span>
+                            <span class="role-desc">Toàn quyền hệ thống</span>
+                        </div>
+                    </label>
+                    <label class="role-option @(newRole == "Agent" ? "selected" : "")">
+                        <input type="radio" name="role" value="Agent" @onchange="@(() => newRole = "Agent")" checked="@(newRole == "Agent")" />
+                        <div class="role-card agent">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                            <span class="role-name">Nhân viên hỗ trợ</span>
+                            <span class="role-desc">Xử lý ticket</span>
+                        </div>
+                    </label>
+                    <label class="role-option @(newRole == "Customer" ? "selected" : "")">
+                        <input type="radio" name="role" value="Customer" @onchange="@(() => newRole = "Customer")" checked="@(newRole == "Customer")" />
+                        <div class="role-card customer">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                            </svg>
+                            <span class="role-name">Khách hàng</span>
+                            <span class="role-desc">Gửi yêu cầu hỗ trợ</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseRoleModal">Hủy</button>
+                <button class="btn-save" @onclick="SaveRole" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="btn-loader"></span>
+                    }
+                    Cập nhật vai trò
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool showDetailModal = false;
+    private bool showRoleModal = false;
+    private bool isSaving = false;
+
+    private string searchQuery = "";
+    private string filterRole = "";
+    private string newRole = "";
+
+    private int totalUsers = 0;
+    private int agentCount = 0;
+    private int customerCount = 0;
+
+    private List<UserDTO> users = new();
+    private List<UserDTO> filteredUsers = new();
+    private UserDTO? selectedUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<UserDTO>>("api/users");
+            if (response != null)
+            {
+                users = response;
+                totalUsers = users.Count;
+                agentCount = users.Count(u => u.Role == "Agent");
+                customerCount = users.Count(u => u.Role == "Customer");
+                FilterUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading users: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterUsers()
+    {
+        filteredUsers = users.Where(u =>
+        {
+            // Search filter
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                var query = searchQuery.ToLower();
+                if (!u.Name.ToLower().Contains(query) && 
+                    !u.Surname.ToLower().Contains(query) &&
+                    !u.Email.ToLower().Contains(query))
+                    return false;
+            }
+
+            // Role filter
+            if (!string.IsNullOrEmpty(filterRole))
+            {
+                if (u.Role != filterRole)
+                    return false;
+            }
+
+            return true;
+        }).ToList();
+    }
+
+    private void ViewUserDetail(UserDTO user)
+    {
+        selectedUser = user;
+        showDetailModal = true;
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        selectedUser = null;
+    }
+
+    private void OpenRoleModal(UserDTO user)
+    {
+        selectedUser = user;
+        newRole = user.Role;
+        showRoleModal = true;
+    }
+
+    private void CloseRoleModal()
+    {
+        showRoleModal = false;
+        selectedUser = null;
+    }
+
+    private async Task SaveRole()
+    {
+        if (selectedUser == null || string.IsNullOrEmpty(newRole)) return;
+
+        isSaving = true;
+        try
+        {
+            var response = await Http.PutAsJsonAsync($"api/users/{selectedUser.Id}/role", new { Role = newRole });
+            if (response.IsSuccessStatusCode)
+            {
+                CloseRoleModal();
+                await LoadUsers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating role: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private string GetInitials(string name, string surname)
+    {
+        var first = !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "";
+        var last = !string.IsNullOrEmpty(surname) ? surname[0].ToString().ToUpper() : "";
+        return first + last;
+    }
+
+    private string GetRoleColor(string role) => role switch
+    {
+        "Admin" => "admin",
+        "Agent" => "agent",
+        "Customer" => "customer",
+        _ => "customer"
+    };
+
+    private string GetRoleText(string role) => role switch
+    {
+        "Admin" => "Quản trị viên",
+        "Agent" => "Nhân viên hỗ trợ",
+        "Customer" => "Khách hàng",
+        _ => "Khách hàng"
+    };
+
+    public class UserDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "Customer";
+        public int CreatedTicketsCount { get; set; }
+        public int AssignedTicketsCount { get; set; }
+    }
+}

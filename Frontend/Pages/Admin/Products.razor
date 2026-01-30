@@ -1,0 +1,449 @@
+@page "/admin/products"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using System.Net.Http.Json
+
+<PageTitle>Quản lý Sản phẩm - Admin Panel</PageTitle>
+
+<div class="products-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-info">
+            <h1>Quản lý Sản phẩm</h1>
+            <p>Thêm, sửa, xóa các sản phẩm trong hệ thống</p>
+        </div>
+        <button class="btn-add" @onclick="OpenAddModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Thêm sản phẩm
+        </button>
+    </div>
+
+    <!-- Search & Filter -->
+    <div class="toolbar">
+        <div class="search-box">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Tìm kiếm sản phẩm..." @bind="searchQuery" @bind:event="oninput" @bind:after="FilterProducts" />
+        </div>
+        <div class="filter-group">
+            <label>Loại:</label>
+            <select @bind="filterCategory" @bind:after="FilterProducts">
+                <option value="">Tất cả loại</option>
+                @foreach (var cat in categories)
+                {
+                    <option value="@cat.Id">@cat.Name</option>
+                }
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Trạng thái:</label>
+            <select @bind="filterStatus" @bind:after="FilterProducts">
+                <option value="">Tất cả</option>
+                <option value="true">Hoạt động</option>
+                <option value="false">Tạm dừng</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Products Table -->
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải dữ liệu...</p>
+        </div>
+    }
+    else if (filteredProducts.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            </svg>
+            <h3>Chưa có sản phẩm nào</h3>
+            <p>Bắt đầu bằng cách thêm sản phẩm đầu tiên</p>
+            <button class="btn-add" @onclick="OpenAddModal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Thêm sản phẩm
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="products-grid">
+            @foreach (var product in filteredProducts)
+            {
+                <div class="product-card @(product.IsActive ? "" : "inactive")">
+                    <div class="product-header">
+                        <div class="product-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                            </svg>
+                        </div>
+                        <div class="product-actions">
+                            <button class="action-btn edit" title="Chỉnh sửa" @onclick="() => OpenEditModal(product)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                            </button>
+                            <button class="action-btn delete" title="Xóa" @onclick="() => ConfirmDelete(product)">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="product-body">
+                        <h3 class="product-name">@product.Name</h3>
+                        <p class="product-description">@(string.IsNullOrEmpty(product.Description) ? "Chưa có mô tả" : product.Description)</p>
+                    </div>
+                    <div class="product-footer">
+                        <div class="product-meta">
+                            @if (!string.IsNullOrEmpty(product.CategoryName))
+                            {
+                                <span class="category-tag">@product.CategoryName</span>
+                            }
+                            <div class="product-stat">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                <span>@product.TicketCount ticket</span>
+                            </div>
+                        </div>
+                        <span class="status-badge @(product.IsActive ? "active" : "inactive")">
+                            @(product.IsActive ? "Hoạt động" : "Tạm dừng")
+                        </span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Add/Edit Modal -->
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h2>@(isEditing ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới")</h2>
+                <button class="close-btn" @onclick="CloseModal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tên sản phẩm <span class="required">*</span></label>
+                    <input type="text" @bind="editProduct.Name" placeholder="Ví dụ: App Bán Hàng" />
+                    @if (!string.IsNullOrEmpty(nameError))
+                    {
+                        <span class="error-text">@nameError</span>
+                    }
+                </div>
+                <div class="form-group">
+                    <label>Loại sản phẩm</label>
+                    <select @bind="editProduct.CategoryId">
+                        <option value="">-- Chọn loại --</option>
+                        @foreach (var cat in categories)
+                        {
+                            <option value="@cat.Id">@cat.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mô tả</label>
+                    <textarea @bind="editProduct.Description" placeholder="Mô tả ngắn gọn về sản phẩm..." rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="editProduct.IsActive" />
+                        <span class="checkmark"></span>
+                        Sản phẩm đang hoạt động
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseModal">Hủy</button>
+                <button class="btn-save" @onclick="SaveProduct" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="btn-loader"></span>
+                    }
+                    @(isEditing ? "Cập nhật" : "Thêm mới")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Confirmation Modal -->
+@if (showDeleteModal)
+{
+    <div class="modal-overlay" @onclick="CloseDeleteModal">
+        <div class="modal-content delete-modal" @onclick:stopPropagation>
+            <div class="delete-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+            </div>
+            <h2>Xác nhận xóa?</h2>
+            <p>Bạn có chắc chắn muốn xóa sản phẩm <strong>"@productToDelete?.Name"</strong>? Hành động này không thể hoàn tác.</p>
+            <div class="modal-actions">
+                <button class="btn-cancel" @onclick="CloseDeleteModal">Hủy bỏ</button>
+                <button class="btn-delete" @onclick="DeleteProduct" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <span class="btn-loader"></span>
+                    }
+                    Xóa sản phẩm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+
+    private string searchQuery = "";
+    private string filterStatus = "";
+    private string filterCategory = "";
+    private string nameError = "";
+
+    private List<ProductDTO> products = new();
+    private List<ProductDTO> filteredProducts = new();
+    private List<CategoryDTO> categories = new();
+    private ProductDTO editProduct = new();
+    private ProductDTO? productToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCategories();
+        await LoadProducts();
+    }
+
+    private async Task LoadCategories()
+    {
+        try
+        {
+            categories = await Http.GetFromJsonAsync<List<CategoryDTO>>("api/productcategories/active") ?? new();
+        }
+        catch { }
+    }
+
+    private async Task LoadProducts()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await Http.GetFromJsonAsync<List<ProductDTO>>("api/products");
+            if (response != null)
+            {
+                products = response;
+                FilterProducts();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading products: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FilterProducts()
+    {
+        filteredProducts = products.Where(p =>
+        {
+            // Search filter
+            if (!string.IsNullOrEmpty(searchQuery))
+            {
+                var query = searchQuery.ToLower();
+                if (!p.Name.ToLower().Contains(query) && 
+                    !(p.Description?.ToLower().Contains(query) ?? false))
+                    return false;
+            }
+
+            // Category filter
+            if (!string.IsNullOrEmpty(filterCategory) && Guid.TryParse(filterCategory, out var catId))
+            {
+                if (p.CategoryId != catId)
+                    return false;
+            }
+
+            // Status filter
+            if (!string.IsNullOrEmpty(filterStatus))
+            {
+                var isActive = bool.Parse(filterStatus);
+                if (p.IsActive != isActive)
+                    return false;
+            }
+
+            return true;
+        }).ToList();
+    }
+
+    private void OpenAddModal()
+    {
+        isEditing = false;
+        editProduct = new ProductDTO { IsActive = true };
+        nameError = "";
+        showModal = true;
+    }
+
+    private void OpenEditModal(ProductDTO product)
+    {
+        isEditing = true;
+        editProduct = new ProductDTO
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Description = product.Description,
+            CategoryId = product.CategoryId,
+            IsActive = product.IsActive
+        };
+        nameError = "";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editProduct = new();
+    }
+
+    private async Task SaveProduct()
+    {
+        // Validate
+        if (string.IsNullOrWhiteSpace(editProduct.Name))
+        {
+            nameError = "Vui lòng nhập tên sản phẩm";
+            return;
+        }
+        nameError = "";
+
+        isSaving = true;
+        try
+        {
+            HttpResponseMessage response;
+            if (isEditing)
+            {
+                response = await Http.PutAsJsonAsync($"api/products/{editProduct.Id}", new
+                {
+                    Name = editProduct.Name,
+                    Description = editProduct.Description,
+                    CategoryId = editProduct.CategoryId,
+                    IsActive = editProduct.IsActive
+                });
+            }
+            else
+            {
+                response = await Http.PostAsJsonAsync("api/products", new
+                {
+                    Name = editProduct.Name,
+                    Description = editProduct.Description,
+                    CategoryId = editProduct.CategoryId,
+                    IsActive = editProduct.IsActive
+                });
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                CloseModal();
+                await LoadProducts();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error saving product: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving product: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ConfirmDelete(ProductDTO product)
+    {
+        productToDelete = product;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        productToDelete = null;
+    }
+
+    private async Task DeleteProduct()
+    {
+        if (productToDelete == null) return;
+
+        isDeleting = true;
+        try
+        {
+            var response = await Http.DeleteAsync($"api/products/{productToDelete.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                CloseDeleteModal();
+                await LoadProducts();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting product: {ex.Message}");
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    public class ProductDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public Guid? CategoryId { get; set; }
+        public string? CategoryName { get; set; }
+        public bool IsActive { get; set; } = true;
+        public int TicketCount { get; set; }
+    }
+
+    public class CategoryDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+}

@@ -1,0 +1,412 @@
+@page "/admin"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<PageTitle>Dashboard - Admin Panel</PageTitle>
+
+<div class="admin-dashboard">
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+        <div class="welcome-content">
+            <h1>Xin chào, Quản trị viên! 👋</h1>
+            <p>Đây là tổng quan hoạt động hệ thống Smart Helpdesk của bạn.</p>
+        </div>
+        <div class="quick-actions">
+            <a href="/admin/products" class="quick-action-btn primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Thêm sản phẩm
+            </a>
+            <a href="/admin/analytics" class="quick-action-btn secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                Xem báo cáo
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+        <div class="stat-card tickets">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">@totalTickets</span>
+                <span class="stat-label">Tổng yêu cầu</span>
+            </div>
+            <div class="stat-trend up">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                </svg>
+                <span>+12%</span>
+            </div>
+        </div>
+
+        <div class="stat-card open">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">@openTickets</span>
+                <span class="stat-label">Đang mở</span>
+            </div>
+            <div class="stat-badge warning">Cần xử lý</div>
+        </div>
+
+        <div class="stat-card products">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">@totalProducts</span>
+                <span class="stat-label">Sản phẩm</span>
+            </div>
+        </div>
+
+        <div class="stat-card users">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">@totalUsers</span>
+                <span class="stat-label">Người dùng</span>
+            </div>
+            <div class="stat-trend up">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                </svg>
+                <span>+5%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="dashboard-grid">
+        <!-- Recent Tickets -->
+        <div class="dashboard-card recent-tickets">
+            <div class="card-header">
+                <h3>Yêu cầu mới nhất</h3>
+                <a href="/admin/tickets" class="view-all-link">Xem tất cả →</a>
+            </div>
+            <div class="card-content">
+                @if (isLoading)
+                {
+                    <div class="loading-state">
+                        <div class="loader"></div>
+                        <span>Đang tải...</span>
+                    </div>
+                }
+                else if (recentTickets.Count == 0)
+                {
+                    <div class="empty-state">
+                        <p>Chưa có yêu cầu nào</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="tickets-list">
+                        @foreach (var ticket in recentTickets.Take(5))
+                        {
+                            <div class="ticket-item @(ticket.Priority == 2 ? "high-priority" : "")">
+                                <div class="ticket-info">
+                                    <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                    <span class="ticket-desc">@TruncateText(ticket.Description, 50)</span>
+                                </div>
+                                <div class="ticket-meta">
+                                    <span class="product-tag">@ticket.ProductName</span>
+                                    <span class="status-badge @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Products Overview -->
+        <div class="dashboard-card products-overview">
+            <div class="card-header">
+                <h3>Sản phẩm</h3>
+                <a href="/admin/products" class="view-all-link">Quản lý →</a>
+            </div>
+            <div class="card-content">
+                @if (isLoading)
+                {
+                    <div class="loading-state">
+                        <div class="loader"></div>
+                        <span>Đang tải...</span>
+                    </div>
+                }
+                else if (products.Count == 0)
+                {
+                    <div class="empty-state">
+                        <p>Chưa có sản phẩm nào</p>
+                        <a href="/admin/products" class="add-link">+ Thêm sản phẩm đầu tiên</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="products-list">
+                        @foreach (var product in products.Take(5))
+                        {
+                            <div class="product-item">
+                                <div class="product-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                    </svg>
+                                </div>
+                                <div class="product-info">
+                                    <span class="product-name">@product.Name</span>
+                                    <span class="product-tickets">@product.TicketCount ticket</span>
+                                </div>
+                                <span class="product-status @(product.IsActive ? "active" : "inactive")">
+                                    @(product.IsActive ? "Hoạt động" : "Tạm dừng")
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Ticket by Category -->
+        <div class="dashboard-card category-stats">
+            <div class="card-header">
+                <h3>Phân loại Ticket</h3>
+            </div>
+            <div class="card-content">
+                <div class="category-chart">
+                    <div class="category-item">
+                        <div class="category-bar">
+                            <div class="bar-fill bug" style="width: @(GetCategoryPercentage(0))%"></div>
+                        </div>
+                        <div class="category-label">
+                            <span class="label-text">Lỗi kỹ thuật</span>
+                            <span class="label-count">@bugCount</span>
+                        </div>
+                    </div>
+                    <div class="category-item">
+                        <div class="category-bar">
+                            <div class="bar-fill feature" style="width: @(GetCategoryPercentage(1))%"></div>
+                        </div>
+                        <div class="category-label">
+                            <span class="label-text">Yêu cầu tính năng</span>
+                            <span class="label-count">@featureCount</span>
+                        </div>
+                    </div>
+                    <div class="category-item">
+                        <div class="category-bar">
+                            <div class="bar-fill support" style="width: @(GetCategoryPercentage(2))%"></div>
+                        </div>
+                        <div class="category-label">
+                            <span class="label-text">Hỗ trợ sử dụng</span>
+                            <span class="label-count">@supportCount</span>
+                        </div>
+                    </div>
+                    <div class="category-item">
+                        <div class="category-bar">
+                            <div class="bar-fill sale" style="width: @(GetCategoryPercentage(3))%"></div>
+                        </div>
+                        <div class="category-label">
+                            <span class="label-text">Tư vấn mua hàng</span>
+                            <span class="label-count">@saleCount</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Priority Distribution -->
+        <div class="dashboard-card priority-stats">
+            <div class="card-header">
+                <h3>Độ ưu tiên</h3>
+            </div>
+            <div class="card-content">
+                <div class="priority-circles">
+                    <div class="priority-circle high">
+                        <span class="circle-value">@highPriorityCount</span>
+                        <span class="circle-label">Cao</span>
+                    </div>
+                    <div class="priority-circle medium">
+                        <span class="circle-value">@mediumPriorityCount</span>
+                        <span class="circle-label">Trung bình</span>
+                    </div>
+                    <div class="priority-circle low">
+                        <span class="circle-value">@lowPriorityCount</span>
+                        <span class="circle-label">Thấp</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isLoading = true;
+    private int totalTickets = 0;
+    private int openTickets = 0;
+    private int totalProducts = 0;
+    private int totalUsers = 0;
+    
+    private int bugCount = 0;
+    private int featureCount = 0;
+    private int supportCount = 0;
+    private int saleCount = 0;
+    
+    private int highPriorityCount = 0;
+    private int mediumPriorityCount = 0;
+    private int lowPriorityCount = 0;
+
+    private List<TicketDTO> recentTickets = new();
+    private List<ProductDTO> products = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        try
+        {
+            // Load tickets
+            var ticketsResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/tickets?pageSize=100");
+            if (ticketsResponse?.Data != null)
+            {
+                totalTickets = ticketsResponse.TotalCount;
+                recentTickets = ticketsResponse.Data.OrderByDescending(t => t.CreatedAt).Take(5).ToList();
+                openTickets = ticketsResponse.Data.Count(t => t.Status == 0 || t.Status == 1);
+                
+                // Count by category
+                bugCount = ticketsResponse.Data.Count(t => t.Category == 0);
+                featureCount = ticketsResponse.Data.Count(t => t.Category == 1);
+                supportCount = ticketsResponse.Data.Count(t => t.Category == 2);
+                saleCount = ticketsResponse.Data.Count(t => t.Category == 3);
+                
+                // Count by priority
+                highPriorityCount = ticketsResponse.Data.Count(t => t.Priority == 2);
+                mediumPriorityCount = ticketsResponse.Data.Count(t => t.Priority == 1);
+                lowPriorityCount = ticketsResponse.Data.Count(t => t.Priority == 0);
+            }
+
+            // Load products
+            var productsResponse = await Http.GetFromJsonAsync<List<ProductDTO>>("api/products");
+            if (productsResponse != null)
+            {
+                products = productsResponse;
+                totalProducts = products.Count;
+            }
+
+            // Load users count
+            var usersResponse = await Http.GetFromJsonAsync<List<UserDTO>>("api/users");
+            if (usersResponse != null)
+            {
+                totalUsers = usersResponse.Count;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private double GetCategoryPercentage(int category)
+    {
+        if (totalTickets == 0) return 0;
+        var count = category switch
+        {
+            0 => bugCount,
+            1 => featureCount,
+            2 => supportCount,
+            3 => saleCount,
+            _ => 0
+        };
+        return Math.Round((double)count / totalTickets * 100, 1);
+    }
+
+    private string TruncateText(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+    }
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "open",
+        1 => "in-progress",
+        2 => "closed",
+        _ => ""
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đang xử lý",
+        2 => "Đã đóng",
+        _ => "Không xác định"
+    };
+
+    // DTOs
+    public class TicketsResponse
+    {
+        public List<TicketDTO> Data { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
+    public class TicketDTO
+    {
+        public Guid Id { get; set; }
+        public string Description { get; set; } = "";
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int? Category { get; set; }
+        public string ProductName { get; set; } = "";
+        public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    public class ProductDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsActive { get; set; }
+        public int TicketCount { get; set; }
+    }
+
+    public class UserDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+}

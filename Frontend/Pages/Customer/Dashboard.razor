@@ -1,5 +1,7 @@
 @page "/customer"
 @layout CustomerLayout
+@inject HttpClient Http
+@inject IJSRuntime JS
 
 <div class="dashboard-container">
     <!-- Welcome Section -->
@@ -74,7 +76,7 @@
                 </div>
                 <div class="action-info">
                     <span class="action-title">Gửi yêu cầu mới</span>
-                    <span class="action-desc">Tạo ticket hỗ trợ</span>
+                    <span class="action-desc">Tạo yêu cầu hỗ trợ</span>
                 </div>
             </a>
             
@@ -137,9 +139,46 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // TODO: Load real data from API
-        recentTickets = new List<TicketSummary>();
-        await Task.CompletedTask;
+        await LoadDashboardData();
+    }
+
+    private async Task LoadDashboardData()
+    {
+        try
+        {
+            // Lấy 2 yêu cầu gần nhất
+            var response = await Http.GetFromJsonAsync<TicketsResponse>("api/Tickets/GetMyTickets?Take=2&Skip=0");
+            
+            if (response?.Tickets != null)
+            {
+                recentTickets = response.Tickets.Select(t => new TicketSummary
+                {
+                    Id = t.Id,
+                    Title = t.Description?.Length > 50 ? t.Description.Substring(0, 50) + "..." : t.Description ?? "",
+                    Status = t.Status,
+                    ProductName = t.ProductName ?? "Chưa xác định",
+                    CreatedAt = t.CreatedAt.DateTime
+                }).ToList();
+
+                // Tính toán thống kê từ tất cả tickets
+                var allResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/Tickets/GetMyTickets?Take=1000&Skip=0");
+                if (allResponse?.Tickets != null)
+                {
+                    newTickets = allResponse.Tickets.Count(t => t.Status == 0);
+                    inProgressTickets = allResponse.Tickets.Count(t => t.Status == 1);
+                    resolvedTickets = allResponse.Tickets.Count(t => t.Status == 2);
+                }
+            }
+            else
+            {
+                recentTickets = new List<TicketSummary>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard: {ex.Message}");
+            recentTickets = new List<TicketSummary>();
+        }
     }
 
     private string GetStatusClass(int status) => status switch
@@ -169,5 +208,24 @@
         public int Status { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class TicketsResponse
+    {
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public int Total { get; set; }
+        public List<TicketItem> Tickets { get; set; } = new();
+    }
+
+    public class TicketItem
+    {
+        public Guid Id { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public string? ProductName { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
     }
 }

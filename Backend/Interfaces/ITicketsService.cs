@@ -14,5 +14,6 @@ namespace SmartHelpdesk.Interfaces
         public Task DeleteTicket(Guid id);
         public Task<FilteredTicketsDTO> GetTickets(TicketsQueryFilters filters);
         public Task<TicketDetailsDTO> GetTicket(Guid id);
+        public Task<object> GetTicketsRaw(int take, int skip);
     }
 }

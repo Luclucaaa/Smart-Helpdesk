@@ -102,6 +102,28 @@
     font-family: inherit;
 }
 
+/* Form Row for side-by-side layout */
+.form-row {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.form-group.half {
+    flex: 1;
+}
+
+/* Required and Optional labels */
+.required-mark {
+    color: #dc2626;
+    margin-left: 2px;
+}
+
+.optional-label {
+    font-weight: 400;
+    color: #9ca3af;
+    font-size: 0.85rem;
+}
+
 .char-count {
     align-self: flex-end;
     font-size: 0.8rem;

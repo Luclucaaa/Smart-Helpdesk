@@ -20,7 +20,7 @@ namespace SmartHelpdesk.DTOs.Responses
         public string UserEmail { get; set; } = null!;
         public string? AssignedToName { get; set; }
         public string? AssignedToEmail { get; set; }
-        public Guid ProductId { get; set; }
-        public string ProductName { get; set; } = null!;
+        public Guid? ProductId { get; set; }
+        public string? ProductName { get; set; }
     }
 }

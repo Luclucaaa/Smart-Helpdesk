@@ -4,7 +4,7 @@
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-/* Sidebar */
+/* Sidebar - Fixed position */
 .sidebar {
     width: 280px;
     background: linear-gradient(180deg, rgba(30, 41, 82, 0.95) 0%, rgba(45, 55, 110, 0.95) 100%);
@@ -13,6 +13,12 @@
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 100;
 }
 
 .sidebar-header {
@@ -195,6 +201,7 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    margin-left: 280px; /* Offset for fixed sidebar */
 }
 
 .top-header {
@@ -225,7 +232,13 @@
     
     .sidebar {
         width: 100%;
+        position: relative;
+        height: auto;
         padding: 1rem;
+    }
+    
+    .main-content {
+        margin-left: 0;
     }
     
     .sidebar-nav {

@@ -47,8 +47,15 @@ namespace SmartHelpdesk.Controllers
             if (result.Succeeded)
             {
                 await _userManager.AddToRoleAsync(user, "Customer");
-                await _signInManager.SignInAsync(user, isPersistent: false);
-                return Ok(user.Id);
+                // Tạo token và trả về để frontend có thể tự động đăng nhập
+                var token = await _tokenService.GenerateJwtToken(user);
+                var roles = await _userManager.GetRolesAsync(user);
+                return Ok(new { 
+                    token = token, 
+                    name = user.Name,
+                    surname = user.Surname,
+                    roles = roles
+                });
             }
 
             return BadRequest(result);
@@ -97,6 +104,45 @@ namespace SmartHelpdesk.Controllers
             }
             
             return Ok(new { message = $"Đã gán role Customer cho {fixedCount} user" });
+        }
+
+        /// <summary>
+        /// Debug endpoint để kiểm tra thông tin user đang đăng nhập
+        /// </summary>
+        [HttpGet("Me")]
+        [Microsoft.AspNetCore.Authorization.Authorize]
+        public async Task<IActionResult> GetCurrentUser()
+        {
+            var emailFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("sub")?.Value;
+            
+            Console.WriteLine($"DEBUG Me: Email from token = {emailFromToken}");
+            Console.WriteLine($"DEBUG Me: All claims:");
+            foreach (var claim in User.Claims)
+            {
+                Console.WriteLine($"  - {claim.Type}: {claim.Value}");
+            }
+            
+            if (string.IsNullOrEmpty(emailFromToken))
+            {
+                return Unauthorized(new { error = "Token không chứa thông tin email" });
+            }
+            
+            var user = await _userManager.FindByEmailAsync(emailFromToken);
+            if (user == null)
+            {
+                return NotFound(new { error = $"Không tìm thấy user với email: {emailFromToken}" });
+            }
+            
+            var roles = await _userManager.GetRolesAsync(user);
+            
+            return Ok(new {
+                id = user.Id,
+                email = user.Email,
+                name = user.Name,
+                surname = user.Surname,
+                roles = roles
+            });
         }
 
     }

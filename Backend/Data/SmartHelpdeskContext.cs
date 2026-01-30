@@ -14,6 +14,7 @@ namespace SmartHelpdesk.Data
         public DbSet<Comment> Comments { get; set; }
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Product> Products { get; set; }
+        public DbSet<ProductCategory> ProductCategories { get; set; }
         
         public SmartHelpdeskContext(DbContextOptions<SmartHelpdeskContext> opt)
             : base(opt) { }
@@ -35,6 +36,7 @@ namespace SmartHelpdesk.Data
             modelBuilder.ApplyConfiguration(new UserConfiguration());
             modelBuilder.ApplyConfiguration(new TicketConfiguration());
             modelBuilder.ApplyConfiguration(new ProductConfiguration());
+            modelBuilder.ApplyConfiguration(new ProductCategoryConfiguration());
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SmartHelpdesk.Data;
 
@@ -11,9 +12,11 @@ using SmartHelpdesk.Data;
 namespace SmartHelpdesk.API.Migrations
 {
     [DbContext(typeof(SmartHelpdeskContext))]
-    partial class SmartHelpdeskContextModelSnapshot : ModelSnapshot
+    [Migration("20260129122311_RemoveIconColorFromProductCategory")]
+    partial class RemoveIconColorFromProductCategory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -226,6 +229,9 @@ namespace SmartHelpdesk.API.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)");
 
@@ -291,11 +297,8 @@ namespace SmartHelpdesk.API.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("ProductId")
+                    b.Property<Guid>("ProductId")
                         .HasColumnType("char(36)");
-
-                    b.Property<string>("ProductName")
-                        .HasColumnType("longtext");
 
                     b.Property<float?>("SentimentScore")
                         .HasColumnType("float");

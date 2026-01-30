@@ -336,7 +336,7 @@
                 {
                     if (result.Roles.Contains("Admin"))
                         redirectUrl = "/admin";
-                    else if (result.Roles.Contains("Nhân viên"))
+                    else if (result.Roles.Contains("Agent"))
                         redirectUrl = "/agent";
                 }
                 NavigationManager.NavigateTo(redirectUrl, forceLoad: true);
@@ -386,9 +386,15 @@
 
             if (response.IsSuccessStatusCode)
             {
-                // Lưu user info vào localStorage
-                await JS.InvokeVoidAsync("localStorage.setItem", "userName", registerModel.Name);
-                await JS.InvokeVoidAsync("localStorage.setItem", "userSurname", registerModel.Surname);
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                // Lưu token và user info vào localStorage
+                if (result != null)
+                {
+                    await JS.InvokeVoidAsync("localStorage.setItem", "token", result.Token);
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userName", result.Name ?? "");
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userSurname", result.Surname ?? "");
+                    await JS.InvokeVoidAsync("localStorage.setItem", "userRoles", string.Join(",", result.Roles));
+                }
                 
                 successMessage = "Đăng ký thành công! Đang chuyển hướng...";
                 registerModel = new RegisterModel();

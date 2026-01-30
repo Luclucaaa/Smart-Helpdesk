@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
 
-<PageTitle>Chi tiết Ticket - Agent Dashboard</PageTitle>
+<PageTitle>Chi tiết yêu cầu hỗ trợ - Agent Dashboard</PageTitle>
 
 <div class="ticket-detail-page">
     @if (isLoading)
@@ -22,7 +22,7 @@
                 <line x1="12" y1="8" x2="12" y2="12"></line>
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
-            <p>Không tìm thấy ticket này</p>
+            <p>Không tìm thấy yêu cầu này</p>
             <a href="/agent/tickets" class="btn-back">Quay lại danh sách</a>
         </div>
     }
@@ -62,7 +62,7 @@
                 <!-- Ticket Info Card -->
                 <div class="info-card">
                     <div class="card-header">
-                        <h3>Thông tin Ticket</h3>
+                        <h3>Thông tin yêu cầu</h3>
                         <span class="status-badge @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
                     </div>
                     

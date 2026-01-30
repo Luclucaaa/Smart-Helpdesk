@@ -1,0 +1,543 @@
+@page "/admin/analytics"
+@layout AdminLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+
+<PageTitle>Thống kê & Báo cáo - Admin Panel</PageTitle>
+
+<div class="analytics-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-info">
+            <h1>Thống kê & Báo cáo</h1>
+            <p>Phân tích dữ liệu và hiệu suất hệ thống</p>
+        </div>
+        <div class="date-filter">
+            <label>Khoảng thời gian:</label>
+            <select @bind="dateRange" @bind:after="LoadAnalytics">
+                <option value="7">7 ngày qua</option>
+                <option value="30">30 ngày qua</option>
+                <option value="90">90 ngày qua</option>
+                <option value="365">1 năm qua</option>
+            </select>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải dữ liệu thống kê...</p>
+        </div>
+    }
+    else
+    {
+        <!-- Overview Stats -->
+        <div class="overview-section">
+            <div class="overview-card total">
+                <div class="overview-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                </div>
+                <div class="overview-content">
+                    <span class="overview-value">@totalTickets</span>
+                    <span class="overview-label">Tổng số yêu cầu</span>
+                    <span class="overview-change positive">+@newTicketsThisPeriod trong kỳ</span>
+                </div>
+            </div>
+
+            <div class="overview-card resolved">
+                <div class="overview-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                </div>
+                <div class="overview-content">
+                    <span class="overview-value">@resolvedTickets</span>
+                    <span class="overview-label">Đã giải quyết</span>
+                    <span class="overview-change">@resolutionRate% tỷ lệ giải quyết</span>
+                </div>
+            </div>
+
+            <div class="overview-card avg-time">
+                <div class="overview-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                </div>
+                <div class="overview-content">
+                    <span class="overview-value">@avgResponseTime<small>h</small></span>
+                    <span class="overview-label">Thời gian phản hồi TB</span>
+                    <span class="overview-change">Mục tiêu: 24h</span>
+                </div>
+            </div>
+
+            <div class="overview-card satisfaction">
+                <div class="overview-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                        <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                        <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                    </svg>
+                </div>
+                <div class="overview-content">
+                    <span class="overview-value">@satisfactionRate<small>%</small></span>
+                    <span class="overview-label">Hài lòng khách hàng</span>
+                    <span class="overview-change positive">Tích cực</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-grid">
+            <!-- Tickets by Product -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Yêu cầu theo Sản phẩm</h3>
+                    <span class="chart-subtitle">Phân bổ yêu cầu theo từng sản phẩm</span>
+                </div>
+                <div class="chart-content">
+                    <div class="pie-chart-container">
+                        <div class="pie-chart">
+                            @{
+                                var total = productStats.Sum(p => p.TicketCount);
+                                double currentAngle = 0;
+                            }
+                            @foreach (var (product, index) in productStats.Select((p, i) => (p, i)))
+                            {
+                                var percentage = total > 0 ? (double)product.TicketCount / total * 100 : 0;
+                                var color = GetChartColor(index);
+                                <div class="pie-segment" 
+                                     style="--start-angle: @currentAngle.ToString("F1")deg; --end-angle: @((currentAngle + percentage * 3.6).ToString("F1"))deg; --color: @color">
+                                </div>
+                                currentAngle += percentage * 3.6;
+                            }
+                            <div class="pie-center">
+                                <span class="center-value">@total</span>
+                                <span class="center-label">Tổng</span>
+                            </div>
+                        </div>
+                        <div class="pie-legend">
+                            @foreach (var (product, index) in productStats.Select((p, i) => (p, i)))
+                            {
+                                var percentage = total > 0 ? (double)product.TicketCount / total * 100 : 0;
+                                <div class="legend-item">
+                                    <span class="legend-color" style="background: @GetChartColor(index)"></span>
+                                    <span class="legend-text">@product.Name</span>
+                                    <span class="legend-value">@product.TicketCount (@percentage.ToString("F1")%)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tickets by Category -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Yêu cầu theo Phân loại</h3>
+                    <span class="chart-subtitle">Phân loại yêu cầu hỗ trợ</span>
+                </div>
+                <div class="chart-content">
+                    <div class="bar-chart">
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span class="bar-name">Lỗi kỹ thuật</span>
+                                <span class="bar-count">@bugCount</span>
+                            </div>
+                            <div class="bar-track">
+                                <div class="bar-fill bug" style="width: @GetPercentage(bugCount)%"></div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span class="bar-name">Yêu cầu tính năng</span>
+                                <span class="bar-count">@featureCount</span>
+                            </div>
+                            <div class="bar-track">
+                                <div class="bar-fill feature" style="width: @GetPercentage(featureCount)%"></div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span class="bar-name">Hỗ trợ sử dụng</span>
+                                <span class="bar-count">@supportCount</span>
+                            </div>
+                            <div class="bar-track">
+                                <div class="bar-fill support" style="width: @GetPercentage(supportCount)%"></div>
+                            </div>
+                        </div>
+                        <div class="bar-item">
+                            <div class="bar-label">
+                                <span class="bar-name">Tư vấn mua hàng</span>
+                                <span class="bar-count">@saleCount</span>
+                            </div>
+                            <div class="bar-track">
+                                <div class="bar-fill sale" style="width: @GetPercentage(saleCount)%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tickets by Status -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Yêu cầu theo Trạng thái</h3>
+                    <span class="chart-subtitle">Tiến độ xử lý yêu cầu</span>
+                </div>
+                <div class="chart-content">
+                    <div class="status-cards">
+                        <div class="status-card open">
+                            <div class="status-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                            </div>
+                            <div class="status-info">
+                                <span class="status-value">@openCount</span>
+                                <span class="status-label">Mới</span>
+                            </div>
+                        </div>
+                        <div class="status-card in-progress">
+                            <div class="status-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                            </div>
+                            <div class="status-info">
+                                <span class="status-value">@inProgressCount</span>
+                                <span class="status-label">Đang xử lý</span>
+                            </div>
+                        </div>
+                        <div class="status-card closed">
+                            <div class="status-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                            <div class="status-info">
+                                <span class="status-value">@closedCount</span>
+                                <span class="status-label">Đã đóng</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="progress-bar-section">
+                        <div class="progress-track">
+                            <div class="progress-segment open" style="width: @GetStatusPercentage(openCount)%"></div>
+                            <div class="progress-segment in-progress" style="width: @GetStatusPercentage(inProgressCount)%"></div>
+                            <div class="progress-segment closed" style="width: @GetStatusPercentage(closedCount)%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Priority Distribution -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>Phân bổ Độ ưu tiên</h3>
+                    <span class="chart-subtitle">Yêu cầu theo mức độ khẩn cấp</span>
+                </div>
+                <div class="chart-content">
+                    <div class="priority-distribution">
+                        <div class="priority-item high">
+                            <div class="priority-ring">
+                                <svg viewBox="0 0 36 36">
+                                    <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                    <path class="ring-fill" stroke-dasharray="@GetPriorityPercentage(highPriorityCount), 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                </svg>
+                                <span class="ring-value">@highPriorityCount</span>
+                            </div>
+                            <span class="priority-label">Cao</span>
+                        </div>
+                        <div class="priority-item medium">
+                            <div class="priority-ring">
+                                <svg viewBox="0 0 36 36">
+                                    <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                    <path class="ring-fill" stroke-dasharray="@GetPriorityPercentage(mediumPriorityCount), 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                </svg>
+                                <span class="ring-value">@mediumPriorityCount</span>
+                            </div>
+                            <span class="priority-label">Trung bình</span>
+                        </div>
+                        <div class="priority-item low">
+                            <div class="priority-ring">
+                                <svg viewBox="0 0 36 36">
+                                    <path class="ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                    <path class="ring-fill" stroke-dasharray="@GetPriorityPercentage(lowPriorityCount), 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                                </svg>
+                                <span class="ring-value">@lowPriorityCount</span>
+                            </div>
+                            <span class="priority-label">Thấp</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Agents Section -->
+        <div class="agents-section">
+            <div class="section-header">
+                <h3>Hiệu suất Nhân viên Hỗ trợ</h3>
+                <span class="section-subtitle">Xếp hạng theo số yêu cầu đã xử lý</span>
+            </div>
+            <div class="agents-table-container">
+                @if (topAgents.Count == 0)
+                {
+                    <div class="empty-state small">
+                        <p>Chưa có dữ liệu nhân viên</p>
+                    </div>
+                }
+                else
+                {
+                    <table class="agents-table">
+                        <thead>
+                            <tr>
+                                <th>Xếp hạng</th>
+                                <th>Nhân viên</th>
+                                <th>Yêu cầu đã xử lý</th>
+                                <th>Đang xử lý</th>
+                                <th>Hiệu suất</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var (agent, index) in topAgents.Select((a, i) => (a, i)))
+                            {
+                                <tr>
+                                    <td class="rank-cell">
+                                        <span class="rank @(index < 3 ? "top" : "")">@(index + 1)</span>
+                                    </td>
+                                    <td class="agent-cell">
+                                        <div class="agent-avatar">
+                                            @GetInitials(agent.Name, agent.Surname)
+                                        </div>
+                                        <div class="agent-info">
+                                            <span class="agent-name">@agent.Name @agent.Surname</span>
+                                            <span class="agent-email">@agent.Email</span>
+                                        </div>
+                                    </td>
+                                    <td class="center">
+                                        <span class="resolved-count">@agent.ResolvedCount</span>
+                                    </td>
+                                    <td class="center">
+                                        <span class="pending-count">@agent.PendingCount</span>
+                                    </td>
+                                    <td>
+                                        <div class="performance-bar">
+                                            <div class="performance-fill" style="width: @agent.Performance%"></div>
+                                            <span class="performance-text">@agent.Performance%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private int dateRange = 30;
+
+    // Overview stats
+    private int totalTickets = 0;
+    private int newTicketsThisPeriod = 0;
+    private int resolvedTickets = 0;
+    private double resolutionRate = 0;
+    private double avgResponseTime = 0;
+    private double satisfactionRate = 0;
+
+    // Category counts
+    private int bugCount = 0;
+    private int featureCount = 0;
+    private int supportCount = 0;
+    private int saleCount = 0;
+
+    // Status counts
+    private int openCount = 0;
+    private int inProgressCount = 0;
+    private int closedCount = 0;
+
+    // Priority counts
+    private int highPriorityCount = 0;
+    private int mediumPriorityCount = 0;
+    private int lowPriorityCount = 0;
+
+    private List<ProductStat> productStats = new();
+    private List<AgentStat> topAgents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAnalytics();
+    }
+
+    private async Task LoadAnalytics()
+    {
+        isLoading = true;
+        try
+        {
+            // Load tickets data
+            var ticketsResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/tickets?pageSize=1000");
+            if (ticketsResponse?.Data != null)
+            {
+                var tickets = ticketsResponse.Data;
+                var cutoffDate = DateTimeOffset.Now.AddDays(-dateRange);
+                var filteredTickets = tickets.Where(t => t.CreatedAt >= cutoffDate).ToList();
+
+                totalTickets = ticketsResponse.TotalCount;
+                newTicketsThisPeriod = filteredTickets.Count;
+
+                // Status counts
+                openCount = tickets.Count(t => t.Status == 0);
+                inProgressCount = tickets.Count(t => t.Status == 1);
+                closedCount = tickets.Count(t => t.Status == 2);
+                resolvedTickets = closedCount;
+
+                // Resolution rate
+                resolutionRate = totalTickets > 0 ? Math.Round((double)closedCount / totalTickets * 100, 1) : 0;
+
+                // Category counts
+                bugCount = tickets.Count(t => t.Category == 0);
+                featureCount = tickets.Count(t => t.Category == 1);
+                supportCount = tickets.Count(t => t.Category == 2);
+                saleCount = tickets.Count(t => t.Category == 3);
+
+                // Priority counts
+                highPriorityCount = tickets.Count(t => t.Priority == 2);
+                mediumPriorityCount = tickets.Count(t => t.Priority == 1);
+                lowPriorityCount = tickets.Count(t => t.Priority == 0);
+
+                // Calculate avg response time (mock for now)
+                avgResponseTime = 18.5;
+                
+                // Calculate satisfaction rate based on sentiment
+                var positiveCount = tickets.Count(t => t.SentimentScore >= 0.4);
+                satisfactionRate = tickets.Count > 0 ? Math.Round((double)positiveCount / tickets.Count * 100, 1) : 0;
+
+                // Group by product
+                productStats = tickets
+                    .GroupBy(t => t.ProductName)
+                    .Select(g => new ProductStat { Name = g.Key ?? "Không xác định", TicketCount = g.Count() })
+                    .OrderByDescending(p => p.TicketCount)
+                    .Take(6)
+                    .ToList();
+            }
+
+            // Load agents data
+            var usersResponse = await Http.GetFromJsonAsync<List<UserDTO>>("api/users");
+            if (usersResponse != null)
+            {
+                topAgents = usersResponse
+                    .Where(u => u.Role == "Agent")
+                    .Select(u => new AgentStat
+                    {
+                        Name = u.Name,
+                        Surname = u.Surname,
+                        Email = u.Email,
+                        ResolvedCount = u.AssignedTicketsCount,
+                        PendingCount = 0,
+                        Performance = u.AssignedTicketsCount > 0 ? Math.Min(100, u.AssignedTicketsCount * 10) : 0
+                    })
+                    .OrderByDescending(a => a.ResolvedCount)
+                    .Take(5)
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading analytics: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetChartColor(int index)
+    {
+        var colors = new[] { "#e94560", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899" };
+        return colors[index % colors.Length];
+    }
+
+    private double GetPercentage(int count)
+    {
+        var max = Math.Max(Math.Max(bugCount, featureCount), Math.Max(supportCount, saleCount));
+        return max > 0 ? (double)count / max * 100 : 0;
+    }
+
+    private double GetStatusPercentage(int count)
+    {
+        var total = openCount + inProgressCount + closedCount;
+        return total > 0 ? (double)count / total * 100 : 0;
+    }
+
+    private double GetPriorityPercentage(int count)
+    {
+        var total = highPriorityCount + mediumPriorityCount + lowPriorityCount;
+        return total > 0 ? Math.Round((double)count / total * 100, 0) : 0;
+    }
+
+    private string GetInitials(string name, string surname)
+    {
+        var first = !string.IsNullOrEmpty(name) ? name[0].ToString().ToUpper() : "";
+        var last = !string.IsNullOrEmpty(surname) ? surname[0].ToString().ToUpper() : "";
+        return first + last;
+    }
+
+    // DTOs
+    public class TicketsResponse
+    {
+        public List<TicketDTO> Data { get; set; } = new();
+        public int TotalCount { get; set; }
+    }
+
+    public class TicketDTO
+    {
+        public Guid Id { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int? Category { get; set; }
+        public string? ProductName { get; set; }
+        public float? SentimentScore { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    public class UserDTO
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public int AssignedTicketsCount { get; set; }
+    }
+
+    public class ProductStat
+    {
+        public string Name { get; set; } = "";
+        public int TicketCount { get; set; }
+    }
+
+    public class AgentStat
+    {
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public int ResolvedCount { get; set; }
+        public int PendingCount { get; set; }
+        public int Performance { get; set; }
+    }
+}
