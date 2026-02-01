@@ -390,14 +390,14 @@
         try
         {
             // Load tickets data
-            var ticketsResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/tickets?pageSize=1000");
-            if (ticketsResponse?.Data != null)
+            var ticketsResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/Tickets/GetTickets?Take=1000&Skip=0");
+            if (ticketsResponse?.Tickets != null)
             {
-                var tickets = ticketsResponse.Data;
+                var tickets = ticketsResponse.Tickets;
                 var cutoffDate = DateTimeOffset.Now.AddDays(-dateRange);
                 var filteredTickets = tickets.Where(t => t.CreatedAt >= cutoffDate).ToList();
 
-                totalTickets = ticketsResponse.TotalCount;
+                totalTickets = (int)ticketsResponse.Total;
                 newTicketsThisPeriod = filteredTickets.Count;
 
                 // Status counts
@@ -500,8 +500,10 @@
     // DTOs
     public class TicketsResponse
     {
-        public List<TicketDTO> Data { get; set; } = new();
-        public int TotalCount { get; set; }
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public long Total { get; set; }
+        public List<TicketDTO> Tickets { get; set; } = new();
     }
 
     public class TicketDTO

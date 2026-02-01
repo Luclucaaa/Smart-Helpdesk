@@ -171,6 +171,7 @@ namespace SmartHelpdesk.Services
             Console.WriteLine($"DEBUG GetTicketsRaw: total count = {total}");
             
             var tickets = await _context.Tickets
+                .Include(t => t.User)
                 .OrderByDescending(t => t.CreatedAt)
                 .Skip(skip)
                 .Take(take)
@@ -181,9 +182,13 @@ namespace SmartHelpdesk.Services
                     t.Description,
                     Status = (int)t.Status,
                     Priority = (int)t.Priority,
+                    Category = t.Category != null ? (int?)t.Category : null,
+                    t.SentimentScore,
                     t.ProductName,
                     t.CreatedAt,
-                    t.UserId
+                    t.UserId,
+                    UserName = t.User != null ? t.User.Name : "",
+                    UserEmail = t.User != null ? t.User.Email : ""
                 })
                 .ToListAsync();
             

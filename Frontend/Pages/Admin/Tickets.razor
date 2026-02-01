@@ -2,6 +2,7 @@
 @layout AdminLayout
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @using System.Net.Http.Json
 
 <PageTitle>Tất cả yêu cầu hỗ trợ - Admin Panel</PageTitle>
@@ -135,7 +136,7 @@
                                 <span class="desc-text">@TruncateText(ticket.Description, 50)</span>
                             </td>
                             <td>
-                                <span class="product-tag">@ticket.ProductName</span>
+                                <span class="product-tag">@(ticket.ProductName ?? "Không xác định")</span>
                             </td>
                             <td>
                                 <span class="category-badge @GetCategoryClass(ticket.Category)">
@@ -214,6 +215,18 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Debug: Check user info first
+        try
+        {
+            var debugResponse = await Http.GetAsync("api/Tickets/DebugMyInfo");
+            var debugContent = await debugResponse.Content.ReadAsStringAsync();
+            Console.WriteLine($"DEBUG: User Info = {debugContent}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"DEBUG: Error getting user info = {ex.Message}");
+        }
+        
         await LoadProducts();
         await LoadTickets();
     }
@@ -239,22 +252,80 @@
         isLoading = true;
         try
         {
-            var response = await Http.GetFromJsonAsync<TicketsResponse>("api/tickets?pageSize=1000");
-            if (response?.Data != null)
+            Console.WriteLine("DEBUG Admin: Loading tickets...");
+            
+            // Lấy token để debug
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "token");
+            Console.WriteLine($"DEBUG Admin: Token exists = {!string.IsNullOrEmpty(token)}");
+            
+            // Sử dụng GetMyTickets vì nó trả về raw data đơn giản hơn
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/Tickets/GetMyTickets?Take=1000&Skip=0");
+            var httpResponse = await Http.SendAsync(request);
+            
+            Console.WriteLine($"DEBUG Admin: Response Status = {httpResponse.StatusCode}");
+            
+            var content = await httpResponse.Content.ReadAsStringAsync();
+            Console.WriteLine($"DEBUG Admin: Response Body (first 500 chars) = {(content?.Length > 500 ? content.Substring(0, 500) : content)}");
+            
+            if (httpResponse.IsSuccessStatusCode)
             {
-                allTickets = response.Data;
-                totalCount = response.TotalCount;
+                // GetMyTickets trả về format: { take, skip, total, tickets: [...] }
+                var response = System.Text.Json.JsonSerializer.Deserialize<RawTicketsResponse>(content, new System.Text.Json.JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+                
+                Console.WriteLine($"DEBUG Admin: Deserialized, Tickets count = {response?.Tickets?.Count ?? 0}, Total = {response?.Total ?? 0}");
+                
+                if (response?.Tickets != null)
+                {
+                    // Map từ RawTicketDTO sang TicketDTO
+                    allTickets = response.Tickets.Select(t => new TicketDTO
+                    {
+                        Id = t.Id,
+                        Title = t.Title ?? "",
+                        Description = t.Description ?? "",
+                        Status = t.Status,
+                        Priority = t.Priority,
+                        Category = t.Category,
+                        SentimentScore = t.SentimentScore,
+                        ProductId = null,
+                        ProductName = t.ProductName,
+                        UserId = t.UserId,
+                        UserName = t.UserName ?? "",
+                        UserEmail = t.UserEmail ?? "",
+                        AssignedToName = null,
+                        AssignedToEmail = null,
+                        CreatedAt = t.CreatedAt,
+                        UpdatedAt = null,
+                        ClosedAt = null
+                    }).ToList();
+                    
+                    totalCount = response.Total;
+                    Console.WriteLine($"DEBUG Admin: Loaded {allTickets.Count} tickets, Total: {totalCount}");
 
-                openCount = allTickets.Count(t => t.Status == 0);
-                inProgressCount = allTickets.Count(t => t.Status == 1);
-                closedCount = allTickets.Count(t => t.Status == 2);
+                    openCount = allTickets.Count(t => t.Status == 0);
+                    inProgressCount = allTickets.Count(t => t.Status == 1);
+                    closedCount = allTickets.Count(t => t.Status == 2);
 
-                ApplyFilters();
+                    ApplyFilters();
+                }
+                else
+                {
+                    Console.WriteLine("DEBUG Admin: Response.Tickets is null");
+                    allTickets = new List<TicketDTO>();
+                }
+            }
+            else
+            {
+                Console.WriteLine($"DEBUG Admin: HTTP Error: {httpResponse.StatusCode} - {content}");
+                allTickets = new List<TicketDTO>();
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading tickets: {ex.Message}");
+            Console.WriteLine($"DEBUG Admin Error: {ex.GetType().Name} - {ex.Message}");
+            Console.WriteLine($"DEBUG Admin Stack: {ex.StackTrace}");
         }
         finally
         {
@@ -271,9 +342,9 @@
         {
             var search = searchQuery.ToLower();
             query = query.Where(t =>
-                t.Description.ToLower().Contains(search) ||
-                t.UserName.ToLower().Contains(search) ||
-                t.UserEmail.ToLower().Contains(search) ||
+                (t.Description ?? "").ToLower().Contains(search) ||
+                (t.UserName ?? "").ToLower().Contains(search) ||
+                (t.UserEmail ?? "").ToLower().Contains(search) ||
                 t.Id.ToString().ToLower().Contains(search));
         }
 
@@ -379,25 +450,58 @@
     };
 
     // DTOs
+    // Response từ GetMyTickets (raw format)
+    public class RawTicketsResponse
+    {
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public int Total { get; set; }
+        public List<RawTicketDTO> Tickets { get; set; } = new();
+    }
+
+    public class RawTicketDTO
+    {
+        public Guid Id { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int? Category { get; set; }
+        public float? SentimentScore { get; set; }
+        public string? ProductName { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid UserId { get; set; }
+        public string? UserName { get; set; }
+        public string? UserEmail { get; set; }
+    }
+
     public class TicketsResponse
     {
-        public List<TicketDTO> Data { get; set; } = new();
-        public int TotalCount { get; set; }
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public long Total { get; set; }
+        public List<TicketDTO> Tickets { get; set; } = new();
     }
 
     public class TicketDTO
     {
         public Guid Id { get; set; }
+        public string Title { get; set; } = "";
         public string Description { get; set; } = "";
         public int Status { get; set; }
         public int Priority { get; set; }
         public int? Category { get; set; }
         public float? SentimentScore { get; set; }
-        public Guid ProductId { get; set; }
-        public string ProductName { get; set; } = "";
+        public Guid? ProductId { get; set; }
+        public string? ProductName { get; set; }
+        public Guid UserId { get; set; }
         public string UserName { get; set; } = "";
         public string UserEmail { get; set; } = "";
+        public string? AssignedToName { get; set; }
+        public string? AssignedToEmail { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? UpdatedAt { get; set; }
+        public DateTimeOffset? ClosedAt { get; set; }
     }
 
     public class ProductDTO

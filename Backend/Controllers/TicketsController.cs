@@ -44,6 +44,7 @@ namespace SmartHelpdesk.Controllers
         public async Task<IActionResult> DebugMyInfo()
         {
             var allClaims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+            var roles = User.Claims.Where(c => c.Type == ClaimTypes.Role || c.Type == "role").Select(c => c.Value).ToList();
             
             var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                 ?? User.FindFirst("sub")?.Value;
@@ -61,6 +62,7 @@ namespace SmartHelpdesk.Controllers
             return Ok(new 
             {
                 Claims = allClaims,
+                Roles = roles,
                 EmailFromToken = currentUserEmail,
                 UserFound = user != null,
                 UserId = user?.Id,
@@ -73,12 +75,29 @@ namespace SmartHelpdesk.Controllers
         }
 
         [HttpGet("GetTickets")]
-        [Authorize(Roles = "Admin,Agent")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
         public async Task<IActionResult> GetTickets([FromQuery]TicketsQueryFilters filters)
         {
             var tickets = await _ticketsService.GetTickets(filters);
 
             return Ok(tickets);
+        }
+
+        // Endpoint mới cho Admin - lấy tất cả tickets
+        [HttpGet("GetAllTickets")]
+        [Authorize]
+        public async Task<IActionResult> GetAllTickets([FromQuery]TicketsQueryFilters filters)
+        {
+            try
+            {
+                var tickets = await _ticketsService.GetTickets(filters);
+                return Ok(tickets);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR GetAllTickets: {ex.Message}");
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
 
         [HttpGet("GetMyTickets")]
