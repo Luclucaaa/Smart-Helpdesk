@@ -114,22 +114,138 @@ namespace SmartHelpdesk.Services
 
         public async Task<TicketDetailsDTO> GetTicket(Guid id)
         {
-            var tickets = await _context.Tickets
-                .Include(ticket => ticket.User)
-                .Include(ticket => ticket.AssignedTo)
-                .Include(ticket => ticket.Product)
-                .Include(ticket => ticket.Comments)
-                    .ThenInclude(comment => comment.User)
-                .ToListAsync();
-            var ticket = tickets.FirstOrDefault(t => t.Id == id);
-            if (ticket == null)
+            // Query ticket with Select to avoid nullable Guid issues
+            var ticketData = await _context.Tickets
+                .Where(t => t.Id == id)
+                .Select(t => new 
+                {
+                    t.Id,
+                    t.Title,
+                    t.Description,
+                    t.Priority,
+                    t.Status,
+                    t.Category,
+                    t.SentimentScore,
+                    t.SentimentLabel,
+                    t.CreatedAt,
+                    t.UpdatedAt,
+                    t.ClosedAt,
+                    t.UserId,
+                    t.ProductName
+                })
+                .FirstOrDefaultAsync();
+                
+            if (ticketData == null)
             {
                 throw new NotFoundException();
             }
-
-            var ticketDto = _mapper.Map<Ticket, TicketDetailsDTO>(ticket);
+            
+            // Load User separately
+            var user = await _context.Users.FindAsync(ticketData.UserId);
+            
+            // Load comments separately
+            var comments = await _context.Comments
+                .Where(c => c.TicketId == id)
+                .Select(c => new 
+                {
+                    c.Id,
+                    c.Text,
+                    c.CreatedAt,
+                    c.UpdatedAt,
+                    c.UserId,
+                    c.TicketId
+                })
+                .ToListAsync();
+            
+            // Load comment users
+            var commentUserIds = comments.Select(c => c.UserId).Distinct().ToList();
+            var commentUsers = await _context.Users
+                .Where(u => commentUserIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id);
+            
+            // Build DTO manually
+            var ticketDto = new TicketDetailsDTO
+            {
+                Id = ticketData.Id,
+                Title = ticketData.Title,
+                Description = ticketData.Description,
+                Priority = ticketData.Priority,
+                Status = ticketData.Status,
+                Category = ticketData.Category,
+                SentimentScore = ticketData.SentimentScore,
+                SentimentLabel = ticketData.SentimentLabel,
+                CreatedAt = ticketData.CreatedAt,
+                UpdatedAt = ticketData.UpdatedAt,
+                ClosedAt = ticketData.ClosedAt,
+                UserId = ticketData.UserId,
+                UserName = user?.Name ?? "",
+                UserEmail = user?.Email ?? "",
+                ProductName = ticketData.ProductName,
+                Comments = comments.Select(c => new CommentDTO
+                {
+                    Id = c.Id,
+                    Text = c.Text,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt,
+                    UserId = c.UserId,
+                    UserName = commentUsers.ContainsKey(c.UserId) ? commentUsers[c.UserId].Name : "",
+                    UserEmail = commentUsers.ContainsKey(c.UserId) ? commentUsers[c.UserId].Email : "",
+                    IsFromAgent = c.UserId != ticketData.UserId,
+                    TicketId = c.TicketId,
+                    TicketTitle = ticketData.Title
+                }).ToList()
+            };
 
             return ticketDto;
+        }
+
+        public async Task<object> GetAllTicketIdsForDebug()
+        {
+            var tickets = await _context.Tickets
+                .Select(t => new { t.Id, t.UserId, t.Description })
+                .ToListAsync();
+            
+            return new 
+            {
+                TotalCount = tickets.Count,
+                Tickets = tickets.Select(t => new 
+                {
+                    Id = t.Id.ToString(),
+                    UserId = t.UserId.ToString(),
+                    Description = t.Description?.Substring(0, Math.Min(30, t.Description?.Length ?? 0))
+                })
+            };
+        }
+
+        public async Task<Ticket> GetTicketSimple(Guid id)
+        {
+            // Minimal query - only non-nullable fields
+            var ticketData = await _context.Tickets
+                .Where(t => t.Id == id)
+                .Select(t => new 
+                {
+                    t.Id,
+                    t.Title,
+                    t.Description,
+                    t.UserId
+                })
+                .FirstOrDefaultAsync();
+                
+            if (ticketData == null)
+            {
+                throw new NotFoundException();
+            }
+            
+            // Return minimal ticket
+            var ticket = new Ticket
+            {
+                Id = ticketData.Id,
+                Title = ticketData.Title,
+                Description = ticketData.Description,
+                UserId = ticketData.UserId
+            };
+            
+            return ticket;
         }
 
         private async Task<FilteredTicketsDTO> ApplyFilters(TicketsQueryFilters filters)
@@ -219,14 +335,23 @@ namespace SmartHelpdesk.Services
             return filteredTickets;
         }
 
-        public async Task<object> GetTicketsRaw(int take, int skip)
+        public async Task<object> GetTicketsRaw(int take, int skip, Guid? userId = null)
         {
-            Console.WriteLine($"DEBUG GetTicketsRaw: take={take}, skip={skip}");
+            Console.WriteLine($"DEBUG GetTicketsRaw: take={take}, skip={skip}, userId={userId}");
             
-            var total = await _context.Tickets.CountAsync();
+            var query = _context.Tickets.AsQueryable();
+            
+            // Filter by userId if provided (for customer's "My Tickets")
+            if (userId.HasValue)
+            {
+                query = query.Where(t => t.UserId == userId.Value);
+                Console.WriteLine($"DEBUG GetTicketsRaw: filtering by userId = {userId}");
+            }
+            
+            var total = await query.CountAsync();
             Console.WriteLine($"DEBUG GetTicketsRaw: total count = {total}");
             
-            var tickets = await _context.Tickets
+            var tickets = await query
                 .Include(t => t.User)
                 .OrderByDescending(t => t.CreatedAt)
                 .Skip(skip)

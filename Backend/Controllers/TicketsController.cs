@@ -39,6 +39,76 @@ namespace SmartHelpdesk.Controllers
             _updateTicketValidator = updateTicketValidator;
         }
 
+        [HttpGet("DebugAllTicketIds")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugAllTicketIds()
+        {
+            // Endpoint debug - không cần auth
+            var allTicketIds = await _ticketsService.GetAllTicketIdsForDebug();
+            return Ok(allTicketIds);
+        }
+
+        [HttpGet("DebugTicketById/{id}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugTicketById(Guid id)
+        {
+            try
+            {
+                // Test GetTicket (the real method used by TicketDetails)
+                var ticket = await _ticketsService.GetTicket(id);
+                return Ok(new 
+                {
+                    Found = true,
+                    TicketId = ticket.Id,
+                    UserId = ticket.UserId,
+                    Description = ticket.Description?.Substring(0, Math.Min(50, ticket.Description?.Length ?? 0)),
+                    CommentsCount = ticket.Comments?.Count ?? 0
+                });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new 
+                {
+                    Found = false,
+                    Error = ex.Message,
+                    ErrorType = ex.GetType().Name,
+                    StackTrace = ex.StackTrace?.Substring(0, Math.Min(500, ex.StackTrace?.Length ?? 0))
+                });
+            }
+        }
+
+        [HttpGet("DebugTicket/{id}")]
+        [Authorize]
+        public async Task<IActionResult> DebugTicket(Guid id)
+        {
+            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            
+            try
+            {
+                var ticket = await _ticketsService.GetTicket(id);
+                return Ok(new 
+                {
+                    TicketFound = true,
+                    TicketId = ticket.Id,
+                    TicketUserId = ticket.UserId,
+                    CurrentUserId = user?.Id,
+                    IsOwner = ticket.UserId == user?.Id,
+                    TicketDescription = ticket.Description?.Substring(0, Math.Min(50, ticket.Description?.Length ?? 0))
+                });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new 
+                {
+                    TicketFound = false,
+                    Error = ex.Message,
+                    CurrentUserId = user?.Id,
+                    SearchedId = id
+                });
+            }
+        }
+
         [HttpGet("DebugMyInfo")]
         [Authorize]
         public async Task<IActionResult> DebugMyInfo()
@@ -104,10 +174,21 @@ namespace SmartHelpdesk.Controllers
         [Authorize]
         public async Task<IActionResult> GetMyTickets([FromQuery]TicketsQueryFilters filters)
         {
-            // DEBUG: Trả về raw data không qua AutoMapper
             try
             {
-                var tickets = await _ticketsService.GetTicketsRaw(filters.Take, filters.Skip);
+                // Lấy userId từ token
+                var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var user = await _userManager.FindByEmailAsync(currentUserEmail);
+                
+                if (user == null)
+                {
+                    return Unauthorized("Vui lòng đăng nhập");
+                }
+                
+                Console.WriteLine($"DEBUG GetMyTickets: userId = {user.Id}, email = {currentUserEmail}");
+                
+                // Chỉ lấy tickets của user hiện tại
+                var tickets = await _ticketsService.GetTicketsRaw(filters.Take, filters.Skip, user.Id);
                 return Ok(tickets);
             }
             catch (Exception ex)
@@ -124,33 +205,49 @@ namespace SmartHelpdesk.Controllers
         {
             try
             {
+                Console.WriteLine($"DEBUG TicketDetails: Looking for ticket {id}");
+                
                 var ticket = await _ticketsService.GetTicket(id);
+                
+                Console.WriteLine($"DEBUG TicketDetails: Found ticket, UserId = {ticket.UserId}");
 
                 var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                Console.WriteLine($"DEBUG TicketDetails: currentUserEmail = {currentUserEmail}");
 
                 var user = await _userManager.FindByEmailAsync(currentUserEmail);
                 
                 if (user == null)
                 {
+                    Console.WriteLine($"DEBUG TicketDetails: User not found for email {currentUserEmail}");
                     return Unauthorized("Vui lòng đăng nhập");
                 }
                 
-                var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
+                Console.WriteLine($"DEBUG TicketDetails: Found user {user.Id}, checking roles...");
+                
+                // Kiểm tra cả "Customer" và "Khách hàng"
+                var isCustomer = await _userManager.IsInRoleAsync(user, "Customer") 
+                    || await _userManager.IsInRoleAsync(user, "Khách hàng");
+                
+                Console.WriteLine($"DEBUG TicketDetails: isCustomer = {isCustomer}, user.Id = {user.Id}, ticket.UserId = {ticket.UserId}");
 
                 if (isCustomer && ticket.UserId != user.Id)
                 {
+                    Console.WriteLine($"DEBUG TicketDetails: Customer trying to access other's ticket - FORBIDDEN");
                     return Forbid();
                 }
 
+                Console.WriteLine($"DEBUG TicketDetails: Returning ticket OK");
                 return Ok(ticket);
             }
             catch (NotFoundException)
             {
+                Console.WriteLine($"DEBUG TicketDetails: Ticket {id} NOT FOUND in database");
                 return NotFound();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in TicketDetails: {ex.Message}");
+                Console.WriteLine($"Stack: {ex.StackTrace}");
                 return StatusCode(500, ex.Message);
             }
         }
