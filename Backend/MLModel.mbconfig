@@ -15,7 +15,7 @@
     "ColumnProperties": [
       {
         "ColumnName": "Text",
-        "ColumnPurpose": "Text",
+        "ColumnPurpose": "Feature",
         "ColumnDataFormat": "String",
         "IsCategorical": false,
         "Type": "Column",
@@ -43,8 +43,8 @@
         "Version": 1,
         "Type": "Trial",
         "TrainerName": "TextClassificationMulti",
-        "Score": 0.33333333333333331,
-        "RuntimeInSeconds": 68.263,
+        "Score": 0.7977477121679557,
+        "RuntimeInSeconds": 194.552,
         "Parameter": {
           "_SCHEMA_": "e0 * e1 * e2",
           "e0": {
