@@ -11,6 +11,7 @@ namespace SmartHelpdesk.DTOs.Responses
         public Status Status { get; set; }
         public Category? Category { get; set; }
         public float? SentimentScore { get; set; }
+        public string? SentimentLabel { get; set; }  // "positive", "negative", "neutral"
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
         public DateTimeOffset? ClosedAt { get; set; }

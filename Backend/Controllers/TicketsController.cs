@@ -119,6 +119,7 @@ namespace SmartHelpdesk.Controllers
         }
 
         [HttpGet("TicketDetails/{id}")]
+        [Authorize]
         public async Task<IActionResult> TicketDetails(Guid id)
         {
             try
@@ -128,6 +129,12 @@ namespace SmartHelpdesk.Controllers
                 var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
                 var user = await _userManager.FindByEmailAsync(currentUserEmail);
+                
+                if (user == null)
+                {
+                    return Unauthorized("Vui lòng đăng nhập");
+                }
+                
                 var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
 
                 if (isCustomer && ticket.UserId != user.Id)
@@ -140,6 +147,11 @@ namespace SmartHelpdesk.Controllers
             catch (NotFoundException)
             {
                 return NotFound();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in TicketDetails: {ex.Message}");
+                return StatusCode(500, ex.Message);
             }
         }
 

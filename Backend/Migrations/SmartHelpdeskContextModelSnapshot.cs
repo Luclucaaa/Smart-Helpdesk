@@ -291,10 +291,13 @@ namespace SmartHelpdesk.API.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("ProductId")
+                    b.Property<Guid>("ProductId")
                         .HasColumnType("char(36)");
 
                     b.Property<string>("ProductName")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("SentimentLabel")
                         .HasColumnType("longtext");
 
                     b.Property<float?>("SentimentScore")

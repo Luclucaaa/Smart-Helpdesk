@@ -1,0 +1,29 @@
+{
+  // Không tự động format khi save (tránh conflict với VS)
+  "editor.formatOnSave": false,
+  
+  // Ẩn các file build output
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/.vs": true,
+    "**/*.user": true
+  },
+  
+  // Không watch các thư mục build
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/.vs/**": true
+  },
+  
+  // C# settings (nếu dùng C# extension)
+  "omnisharp.enableRoslynAnalyzers": false,
+  "omnisharp.enableEditorConfigSupport": true,
+  
+  // Git
+  "git.autofetch": true,
+  
+  // Terminal mặc định
+  "terminal.integrated.defaultProfile.windows": "PowerShell"
+}

@@ -19,10 +19,19 @@ namespace SmartHelpdesk.Services
     {
         private readonly SmartHelpdeskContext _context;
         private readonly IMapper _mapper;
-        public TicketsService(SmartHelpdeskContext context, IMapper mapper)
+        private readonly ISentimentService _sentimentService;
+        private readonly ILogger<TicketsService> _logger;
+
+        public TicketsService(
+            SmartHelpdeskContext context, 
+            IMapper mapper,
+            ISentimentService sentimentService,
+            ILogger<TicketsService> logger)
         {
             _context = context;
             _mapper = mapper;
+            _sentimentService = sentimentService;
+            _logger = logger;
         }
         public async Task<Guid> CreateTicket(CreateTicketDTO ticketDTO)
         {
@@ -37,6 +46,53 @@ namespace SmartHelpdesk.Services
                 newTicket.Title = newTicket.Description.Length > 50 
                     ? newTicket.Description.Substring(0, 50) + "..." 
                     : newTicket.Description;
+            }
+
+            // 🔥 AI: Phân tích cảm xúc và tự động set Priority
+            try
+            {
+                var sentimentResult = _sentimentService.AnalyzeSentiment(newTicket.Description);
+                
+                newTicket.SentimentScore = sentimentResult.Score;
+                newTicket.SentimentLabel = sentimentResult.Sentiment;
+                
+                // Tự động set Priority dựa trên sentiment
+                // Negative với score cao -> High priority
+                // Positive hoặc Neutral -> Giữ nguyên mức mặc định
+                if (sentimentResult.Sentiment == "negative" && sentimentResult.Score > 0.6f)
+                {
+                    newTicket.Priority = Priority.High;
+                    _logger.LogInformation(
+                        "Ticket auto-prioritized to HIGH due to negative sentiment. Score: {Score}", 
+                        sentimentResult.Score);
+                }
+                else if (sentimentResult.Sentiment == "negative")
+                {
+                    newTicket.Priority = Priority.Medium;
+                }
+                else
+                {
+                    // Giữ priority mặc định (Low) cho positive/neutral
+                    if (newTicket.Priority == default)
+                    {
+                        newTicket.Priority = Priority.Low;
+                    }
+                }
+                
+                _logger.LogInformation(
+                    "Sentiment analyzed for new ticket: {Sentiment} (Score: {Score:F2}), Priority: {Priority}",
+                    sentimentResult.Sentiment, 
+                    sentimentResult.Score,
+                    newTicket.Priority);
+            }
+            catch (Exception ex)
+            {
+                // Nếu AI fail, vẫn tiếp tục tạo ticket với priority mặc định
+                _logger.LogWarning(ex, "Failed to analyze sentiment, using default priority");
+                if (newTicket.Priority == default)
+                {
+                    newTicket.Priority = Priority.Low;
+                }
             }
 
             _context.Tickets.Add(newTicket);
