@@ -4,6 +4,8 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text.Json.Serialization
 
 <PageTitle>Danh sách yêu cầu hỗ trợ - Agent Dashboard</PageTitle>
 
@@ -56,6 +58,16 @@
     <div class="filters-section">
         <div class="filters-row">
             <div class="filter-group">
+                <label>Sản phẩm</label>
+                <select @bind="filterProduct" @bind:after="ApplyFilters">
+                    <option value="">Tất cả sản phẩm</option>
+                    @foreach (var product in products)
+                    {
+                        <option value="@product.Name">@product.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="filter-group">
                 <label>Trạng thái</label>
                 <select @bind="filterStatus" @bind:after="ApplyFilters">
                     <option value="">Tất cả</option>
@@ -99,6 +111,18 @@
         <div class="loading-state">
             <div class="loader"></div>
             <p>Đang tải dữ liệu...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="empty-state" style="border: 1px solid #ef4444; background: #fef2f2;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+            </svg>
+            <p style="color: #dc2626;">@errorMessage</p>
+            <button @onclick="LoadTickets" style="margin-top: 12px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 8px; cursor: pointer;">Thử lại</button>
         </div>
     }
     else if (filteredTickets.Count == 0)
@@ -198,12 +222,15 @@
 @code {
     private List<AgentTicketDto> allTickets = new();
     private List<AgentTicketDto> filteredTickets = new();
+    private List<ProductDto> products = new();
     private bool isLoading = true;
+    private string errorMessage = "";
     
     // Filters
     private string filterStatus = "";
     private string filterPriority = "";
     private string filterCategory = "";
+    private string filterProduct = "";
     private string searchQuery = "";
     
     // Pagination
@@ -219,44 +246,108 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadProducts();
         await LoadTickets();
+    }
+
+    private async Task LoadProducts()
+    {
+        try
+        {
+            var productList = await Http.GetFromJsonAsync<List<ProductDto>>("api/Products");
+            if (productList != null)
+            {
+                products = productList;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading products: {ex.Message}");
+        }
     }
 
     private async Task LoadTickets()
     {
         isLoading = true;
+        errorMessage = "";
         try
         {
-            // Gọi API để lấy tất cả tickets (lấy nhiều để tính thống kê)
-            var response = await Http.GetFromJsonAsync<FilteredTicketsResponse>("api/Tickets/GetTickets?Take=1000&Skip=0");
+            Console.WriteLine("Calling API: api/Tickets/GetMyTickets");
             
-            if (response != null && response.Tickets != null)
+            // Sử dụng GetMyTickets giống Admin (trả về raw data đơn giản hơn)
+            var httpResponse = await Http.GetAsync("api/Tickets/GetMyTickets?Take=1000&Skip=0");
+            
+            Console.WriteLine($"Response Status: {httpResponse.StatusCode}");
+            
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                var statusCode = (int)httpResponse.StatusCode;
+                Console.WriteLine($"API Error: {statusCode}");
+                
+                if (statusCode == 401)
+                {
+                    errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+                    await Task.Delay(2000);
+                    Navigation.NavigateTo("/auth", forceLoad: true);
+                    return;
+                }
+                else if (statusCode == 403)
+                {
+                    errorMessage = "Bạn không có quyền truy cập danh sách yêu cầu.";
+                }
+                else
+                {
+                    errorMessage = $"Lỗi API: HTTP {statusCode}";
+                }
+                allTickets = new List<AgentTicketDto>();
+                return;
+            }
+            
+            // Đọc raw string và deserialize thủ công giống Admin
+            var content = await httpResponse.Content.ReadAsStringAsync();
+            Console.WriteLine($"Response Body (first 500 chars): {(content?.Length > 500 ? content.Substring(0, 500) : content)}");
+            
+            var response = JsonSerializer.Deserialize<RawTicketsResponse>(content, JsonOptions);
+            Console.WriteLine($"Deserialized: Total={response?.Total}, Tickets count={response?.Tickets?.Count ?? 0}");
+            
+            if (response?.Tickets != null)
             {
                 allTickets = response.Tickets.Select(t => new AgentTicketDto
                 {
                     Id = t.Id,
-                    Title = t.Title,
-                    Description = t.Description,
-                    Priority = (int)t.Priority,
-                    Status = (int)t.Status,
-                    Category = t.Category.HasValue ? (int?)t.Category.Value : null,
+                    Title = t.Title ?? "",
+                    Description = t.Description ?? "",
+                    Priority = t.Priority,
+                    Status = t.Status,
+                    Category = t.Category,
                     SentimentScore = t.SentimentScore,
-                    UserName = t.UserName,
-                    UserEmail = t.UserEmail,
-                    ProductName = t.ProductName,
+                    UserName = t.UserName ?? "Không rõ",
+                    UserEmail = t.UserEmail ?? "",
+                    ProductName = t.ProductName ?? "Chưa phân loại",
                     CreatedAt = t.CreatedAt
                 }).ToList();
+                
+                Console.WriteLine($"Loaded {allTickets.Count} tickets");
             }
             else
             {
+                Console.WriteLine("Response.Tickets is null");
                 allTickets = new List<AgentTicketDto>();
             }
             
             ApplyFilters();
         }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"HTTP Error loading tickets: {ex.StatusCode} - {ex.Message}");
+            errorMessage = $"Lỗi kết nối API: {ex.StatusCode} - Vui lòng kiểm tra Backend đang chạy";
+            allTickets = new List<AgentTicketDto>();
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading tickets: {ex.Message}");
+            Console.WriteLine($"Stack: {ex.StackTrace}");
+            errorMessage = $"Lỗi: {ex.Message}";
             allTickets = new List<AgentTicketDto>();
         }
         finally
@@ -268,6 +359,12 @@
     private void ApplyFilters()
     {
         var query = allTickets.AsEnumerable();
+        
+        // Filter theo sản phẩm
+        if (!string.IsNullOrEmpty(filterProduct))
+        {
+            query = query.Where(t => t.ProductName == filterProduct);
+        }
         
         if (!string.IsNullOrEmpty(filterStatus) && int.TryParse(filterStatus, out int status))
         {
@@ -294,14 +391,32 @@
                 t.UserEmail.ToLower().Contains(search));
         }
         
-        // Sort by priority (high first) then by created date (oldest first for same priority)
-        query = query
-            .OrderByDescending(t => t.Priority)
-            .ThenBy(t => t.CreatedAt);
+        // Sort by Weighted Score (Công thức: Priority High + Thời gian chờ lâu = Xếp đầu)
+        // Weighted Score = (Priority * 100) + (Số giờ chờ / 24)
+        // Điểm cao hơn = ưu tiên hơn
+        var now = DateTimeOffset.Now;
+        query = query.OrderByDescending(t => CalculateWeightedScore(t, now))
+                     .ThenByDescending(t => t.SentimentScore < 0.4 ? 1 : 0); // Sentiment tiêu cực ưu tiên thêm
         
         var result = query.ToList();
         totalTickets = result.Count;
         filteredTickets = result.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    // Tính Weighted Score theo đặc tả: Priority High + Thời gian chờ lâu = Xếp đầu
+    private double CalculateWeightedScore(AgentTicketDto ticket, DateTimeOffset now)
+    {
+        // Priority score: Low=0, Medium=100, High=200
+        double priorityScore = ticket.Priority * 100;
+        
+        // Time waiting score: Số giờ chờ (tối đa 168 giờ = 7 ngày)
+        var hoursWaiting = (now - ticket.CreatedAt).TotalHours;
+        double timeScore = Math.Min(hoursWaiting, 168) / 24 * 10; // Max 70 điểm từ thời gian
+        
+        // Sentiment bonus: Nếu khách hàng không hài lòng, +50 điểm
+        double sentimentBonus = (ticket.SentimentScore ?? 0.5) < 0.4 ? 50 : 0;
+        
+        return priorityScore + timeScore + sentimentBonus;
     }
 
     private void ViewTicket(Guid ticketId)
@@ -406,36 +521,44 @@
         public DateTimeOffset CreatedAt { get; set; }
     }
 
-    // Response DTOs để match với Backend API
-    public class FilteredTicketsResponse
+    // JSON Options để xử lý camelCase từ Backend
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    // Response DTOs giống Admin - dùng raw format với int thay vì enum
+    public class RawTicketsResponse
     {
         public int Take { get; set; }
         public int Skip { get; set; }
-        public long Total { get; set; }
-        public List<TicketResponse> Tickets { get; set; } = new();
+        public int Total { get; set; }
+        public List<RawTicketDTO> Tickets { get; set; } = new();
     }
 
-    public class TicketResponse
+    public class RawTicketDTO
     {
         public Guid Id { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-        public Priority Priority { get; set; }
-        public Status Status { get; set; }
-        public Category? Category { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public int? Category { get; set; }
         public float? SentimentScore { get; set; }
+        public string? ProductName { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
-        public DateTimeOffset? UpdatedAt { get; set; }
         public Guid UserId { get; set; }
-        public string UserName { get; set; } = string.Empty;
-        public string UserEmail { get; set; } = string.Empty;
-        public string? AssignedToName { get; set; }
-        public string? AssignedToEmail { get; set; }
-        public Guid ProductId { get; set; }
-        public string ProductName { get; set; } = string.Empty;
+        public string? UserName { get; set; }
+        public string? UserEmail { get; set; }
     }
 
-    public enum Priority { Low = 0, Medium = 1, High = 2 }
-    public enum Status { Open = 0, InProgress = 1, Closed = 2 }
-    public enum Category { Bug = 0, Feature = 1, Support = 2, Sale = 3 }
+    // DTO cho danh sách sản phẩm
+    public class ProductDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsActive { get; set; }
+        public int TicketCount { get; set; }
+    }
 }

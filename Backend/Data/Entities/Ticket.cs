@@ -10,7 +10,8 @@ namespace SmartHelpdesk.Data.Entities
         public Priority Priority { get; set; }
         public Status Status { get; set; }
         public Category? Category { get; set; }  // Do AI quyết định
-        public float? SentimentScore { get; set; }  // Điểm cảm xúc AI chấm
+        public float? SentimentScore { get; set; }  // Điểm cảm xúc AI chấm (0.0 - 1.0)
+        public string? SentimentLabel { get; set; }  // Nhãn cảm xúc: "positive", "negative", "neutral"
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
         public DateTimeOffset? ClosedAt { get; set; }

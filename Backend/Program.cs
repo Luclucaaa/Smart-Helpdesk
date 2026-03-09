@@ -79,6 +79,9 @@ builder.Services.AddScoped<ICommentsService, CommentsService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
+// AI Services
+builder.Services.AddSingleton<ISentimentService, SentimentService>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
