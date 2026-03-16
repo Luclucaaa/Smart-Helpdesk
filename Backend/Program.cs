@@ -93,10 +93,9 @@ using (var scope = app.Services.CreateScope())
 {
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    
+
     // Seed Roles
     string[] roleNames = { "Admin", "Agent", "Customer" };
-    
     foreach (var roleName in roleNames)
     {
         if (!await roleManager.RoleExistsAsync(roleName))
@@ -104,29 +103,42 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new Role { Name = roleName });
         }
     }
-    
-    // Chuyển users từ role "Nhân viên" sang "Agent" nếu có
+
+    // Xóa hoàn toàn role "Nhân viên" và "Support"
     var nhanvienRole = await roleManager.FindByNameAsync("Nhân viên");
     if (nhanvienRole != null)
     {
-        // Lấy tất cả users có role "Nhân viên"
         var usersInOldRole = await userManager.GetUsersInRoleAsync("Nhân viên");
         foreach (var u in usersInOldRole)
         {
             await userManager.RemoveFromRoleAsync(u, "Nhân viên");
             await userManager.AddToRoleAsync(u, "Agent");
         }
-        // Xóa role cũ
         await roleManager.DeleteAsync(nhanvienRole);
     }
-    
-    // Xóa role "Support" nếu tồn tại (đã đổi sang "Nhân viên")
     var supportRole = await roleManager.FindByNameAsync("Support");
     if (supportRole != null)
     {
+        var usersInOldRole = await userManager.GetUsersInRoleAsync("Support");
+        foreach (var u in usersInOldRole)
+        {
+            await userManager.RemoveFromRoleAsync(u, "Support");
+            await userManager.AddToRoleAsync(u, "Agent");
+        }
         await roleManager.DeleteAsync(supportRole);
     }
-    
+
+    // Đảm bảo mọi user đều có ít nhất 1 role (nếu chưa có thì gán Customer)
+    var allUsers = userManager.Users.ToList();
+    foreach (var user in allUsers)
+    {
+        var roles = await userManager.GetRolesAsync(user);
+        if (roles.Count == 0)
+        {
+            await userManager.AddToRoleAsync(user, "Customer");
+        }
+    }
+
     // Seed Admin account
     var adminEmail = "admin@smarthelpdesk.com";
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
@@ -146,7 +158,16 @@ using (var scope = app.Services.CreateScope())
             await userManager.AddToRoleAsync(adminUser, "Admin");
         }
     }
-    
+    else
+    {
+        var roles = await userManager.GetRolesAsync(adminUser);
+        if (!roles.Contains("Admin"))
+        {
+            foreach (var r in roles) await userManager.RemoveFromRoleAsync(adminUser, r);
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+        }
+    }
+
     // Seed Nhân viên account
     var staffEmail = "nhanvien@smarthelpdesk.com";
     var staffUser = await userManager.FindByEmailAsync(staffEmail);
@@ -163,6 +184,15 @@ using (var scope = app.Services.CreateScope())
         var result = await userManager.CreateAsync(staffUser, "Nhanvien@123");
         if (result.Succeeded)
         {
+            await userManager.AddToRoleAsync(staffUser, "Agent");
+        }
+    }
+    else
+    {
+        var roles = await userManager.GetRolesAsync(staffUser);
+        if (!roles.Contains("Agent"))
+        {
+            foreach (var r in roles) await userManager.RemoveFromRoleAsync(staffUser, r);
             await userManager.AddToRoleAsync(staffUser, "Agent");
         }
     }
