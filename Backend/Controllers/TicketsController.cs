@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -153,14 +153,14 @@ namespace SmartHelpdesk.Controllers
             return Ok(tickets);
         }
 
-        // Endpoint mới cho Admin - lấy tất cả tickets
+        // Endpoint cho Admin và Agent - lấy tất cả tickets (không filter theo userId)
         [HttpGet("GetAllTickets")]
         [Authorize]
-        public async Task<IActionResult> GetAllTickets([FromQuery]TicketsQueryFilters filters)
+        public async Task<IActionResult> GetAllTickets([FromQuery] int Take = 1000, [FromQuery] int Skip = 0)
         {
             try
             {
-                var tickets = await _ticketsService.GetTickets(filters);
+                var tickets = await _ticketsService.GetTicketsRaw(Take, Skip, userId: null);
                 return Ok(tickets);
             }
             catch (Exception ex)

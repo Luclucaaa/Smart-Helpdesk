@@ -41,7 +41,7 @@ namespace SmartHelpdesk.Services
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.Now.AddMinutes(Convert.ToDouble(_configuration["Jwt:ExpiresIn"])),
+            expires: DateTime.Now.AddMinutes(Convert.ToDouble(_configuration["Jwt:ExpiresIn"] ?? "480")),
             signingCredentials: signingCredentials
             );
             return tokenOptions;

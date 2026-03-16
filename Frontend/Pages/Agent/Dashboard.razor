@@ -272,10 +272,10 @@
         errorMessage = "";
         try
         {
-            Console.WriteLine("Calling API: api/Tickets/GetMyTickets");
+            Console.WriteLine("Calling API: api/Tickets/GetAllTickets");
             
-            // Sử dụng GetMyTickets giống Admin (trả về raw data đơn giản hơn)
-            var httpResponse = await Http.GetAsync("api/Tickets/GetMyTickets?Take=1000&Skip=0");
+            // Sử dụng GetAllTickets để lấy toàn bộ ticket (không filter theo userId)
+            var httpResponse = await Http.GetAsync("api/Tickets/GetAllTickets?Take=1000&Skip=0");
             
             Console.WriteLine($"Response Status: {httpResponse.StatusCode}");
             

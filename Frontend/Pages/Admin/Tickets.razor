@@ -259,7 +259,7 @@
             Console.WriteLine($"DEBUG Admin: Token exists = {!string.IsNullOrEmpty(token)}");
             
             // Sử dụng GetMyTickets vì nó trả về raw data đơn giản hơn
-            var request = new HttpRequestMessage(HttpMethod.Get, "api/Tickets/GetMyTickets?Take=1000&Skip=0");
+            var request = new HttpRequestMessage(HttpMethod.Get, "api/Tickets/GetAllTickets?Take=1000&Skip=0");
             var httpResponse = await Http.SendAsync(request);
             
             Console.WriteLine($"DEBUG Admin: Response Status = {httpResponse.StatusCode}");
