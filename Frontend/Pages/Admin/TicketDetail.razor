@@ -1,11 +1,10 @@
-@page "/agent/ticket/{Id:guid}"
-@page "/agent/tickets/{Id:guid}"
-@layout AgentLayout
+@page "/admin/tickets/{Id:guid}"
+@layout AdminLayout
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
 
-<PageTitle>Chi tiết yêu cầu hỗ trợ - Agent Dashboard</PageTitle>
+<PageTitle>Chi tiết yêu cầu - Admin Panel</PageTitle>
 
 <div class="ticket-detail-page">
     @if (isLoading)
@@ -24,14 +23,14 @@
                 <line x1="12" y1="16" x2="12.01" y2="16"></line>
             </svg>
             <p>Không tìm thấy yêu cầu này</p>
-            <a href="/agent/tickets" class="btn-back">Quay lại danh sách</a>
+            <a href="/admin/tickets" class="btn-back">Quay lại danh sách</a>
         </div>
     }
     else
     {
         <!-- Header -->
         <div class="page-header">
-            <a href="/agent/tickets" class="back-link">
+            <a href="/admin/tickets" class="back-link">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="19" y1="12" x2="5" y2="12"></line>
                     <polyline points="12 19 5 12 12 5"></polyline>
@@ -41,7 +40,7 @@
             <div class="header-info">
                 <div class="ticket-id-section">
                     <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
-                    @if (ticket.SentimentScore < 0.4)
+                    @if (ticket.SentimentLabel == "negative")
                     {
                         <span class="sentiment-badge negative">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -91,7 +90,7 @@
                             <span class="label">Điểm cảm xúc</span>
                             <div class="sentiment-score">
                                 <div class="score-bar">
-                                    <div class="score-fill @(ticket.SentimentScore < 0.4 ? "negative" : "positive")" 
+                                    <div class="score-fill @(ticket.SentimentLabel == "negative" ? "negative" : "positive")" 
                                          style="width: @((ticket.SentimentScore ?? 0.5) * 100)%"></div>
                                 </div>
                                 <span class="score-value">@((ticket.SentimentScore ?? 0.5).ToString("P0"))</span>
@@ -235,47 +234,6 @@
                     </div>
                 </div>
 
-                <!-- Quick Actions Card -->
-                <div class="action-card">
-                    <h4>Thao tác nhanh</h4>
-                    <div class="quick-actions">
-                        @if (ticket.Category == 0)
-                        {
-                            <button class="quick-btn bug">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                                </svg>
-                                Chuyển JIRA cho Dev
-                            </button>
-                        }
-                        @if (ticket.Category == 3)
-                        {
-                            <button class="quick-btn sale">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="9" cy="7" r="4"></circle>
-                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                </svg>
-                                Chuyển cho Sale Team
-                            </button>
-                        }
-                        @if (ticket.Category == 2)
-                        {
-                            <button class="quick-btn support">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                </svg>
-                                Gửi hướng dẫn sử dụng
-                            </button>
-                        }
-                    </div>
-                </div>
-
                 <!-- Canned Responses Card -->
                 <div class="action-card">
                     <h4>Trả lời mẫu</h4>
@@ -303,12 +261,11 @@
     [Parameter]
     public Guid Id { get; set; }
     
-    private AgentTicketDetailDto? ticket;
+    private AdminTicketDetailDto? ticket;
     private List<CommentDto> comments = new();
     private string newComment = "";
     private bool isLoading = true;
     private bool isSending = false;
-    private bool isUpdatingStatus = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -320,13 +277,13 @@
         isLoading = true;
         try
         {
-            Console.WriteLine($"DEBUG Agent: Loading ticket {Id}");
+            Console.WriteLine($"DEBUG Admin: Loading ticket {Id}");
             
             var response = await Http.GetAsync($"api/Tickets/TicketDetails/{Id}");
-            Console.WriteLine($"DEBUG Agent: Response status = {response.StatusCode}");
+            Console.WriteLine($"DEBUG Admin: Response status = {response.StatusCode}");
             
             var content = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"DEBUG Agent: Response = {(content?.Length > 300 ? content.Substring(0, 300) : content)}");
+            Console.WriteLine($"DEBUG Admin: Response = {(content?.Length > 300 ? content.Substring(0, 300) : content)}");
             
             if (response.IsSuccessStatusCode && !string.IsNullOrEmpty(content))
             {
@@ -337,15 +294,16 @@
                 
                 if (ticketResponse != null)
                 {
-                    ticket = new AgentTicketDetailDto
+                    ticket = new AdminTicketDetailDto
                     {
                         Id = ticketResponse.Id,
                         Title = ticketResponse.Title,
                         Description = ticketResponse.Description,
-                        Priority = (int)ticketResponse.Priority,
-                        Status = (int)ticketResponse.Status,
-                        Category = ticketResponse.Category.HasValue ? (int?)ticketResponse.Category.Value : null,
+                        Priority = ticketResponse.Priority,
+                        Status = ticketResponse.Status,
+                        Category = ticketResponse.Category,
                         SentimentScore = ticketResponse.SentimentScore,
+                        SentimentLabel = ticketResponse.SentimentLabel,
                         UserName = ticketResponse.UserName,
                         UserEmail = ticketResponse.UserEmail,
                         ProductName = ticketResponse.ProductName,
@@ -367,7 +325,7 @@
             }
             else
             {
-                Console.WriteLine($"DEBUG Agent: API error {response.StatusCode}");
+                Console.WriteLine($"DEBUG Admin: API error {response.StatusCode}");
             }
         }
         catch (Exception ex)
@@ -389,7 +347,6 @@
         isSending = true;
         try
         {
-            // Gọi API để thêm comment
             var response = await Http.PostAsJsonAsync("api/Tickets/Comments/AddCommentToTicket", new 
             { 
                 TicketId = Id, 
@@ -398,7 +355,6 @@
             
             if (response.IsSuccessStatusCode)
             {
-                // Reload comments sau khi thêm thành công
                 await LoadTicketDetail();
                 newComment = "";
             }
@@ -417,10 +373,8 @@
     {
         if (ticket == null) return;
         
-        isUpdatingStatus = true;
         try
         {
-            // Gọi API để cập nhật trạng thái
             var response = await Http.PatchAsJsonAsync($"api/Tickets/UpdateTicketStatus/{Id}", new 
             { 
                 Status = newStatus 
@@ -434,10 +388,6 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error updating status: {ex.Message}");
-        }
-        finally
-        {
-            isUpdatingStatus = false;
         }
     }
 
@@ -496,7 +446,7 @@
         _ => "Chưa phân loại"
     };
 
-    public class AgentTicketDetailDto
+    public class AdminTicketDetailDto
     {
         public Guid Id { get; set; }
         public string Title { get; set; } = string.Empty;
@@ -505,6 +455,7 @@
         public int Status { get; set; }
         public int? Category { get; set; }
         public float? SentimentScore { get; set; }
+        public string? SentimentLabel { get; set; }
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
@@ -527,7 +478,7 @@
         public DateTimeOffset CreatedAt { get; set; }
     }
 
-    // Response DTOs - use int types to avoid enum deserialization issues
+    // Use int types to avoid enum deserialization issues
     public class TicketDetailResponse
     {
         public Guid Id { get; set; }
@@ -544,7 +495,6 @@
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
         public string? AssignedToName { get; set; }
-        public string? AssignedToEmail { get; set; }
         public Guid? ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public List<CommentResponse>? Comments { get; set; }
@@ -557,7 +507,6 @@
         public DateTimeOffset CreatedAt { get; set; }
         public Guid UserId { get; set; }
         public string UserName { get; set; } = string.Empty;
-        public string UserEmail { get; set; } = string.Empty;
         public bool IsFromAgent { get; set; }
     }
 }

@@ -111,10 +111,7 @@
                         <span class="detail-label">Phân loại</span>
                         <span class="detail-value category @GetCategoryClass(ticket.Category)">@GetCategoryText(ticket.Category)</span>
                     </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Độ ưu tiên</span>
-                        <span class="detail-value priority @GetPriorityClass(ticket.Priority)">@GetPriorityText(ticket.Priority)</span>
-                    </div>
+
                 </div>
                 
                 <!-- Description -->
@@ -415,19 +412,17 @@
 
     private string GetPriorityClass(int priority) => priority switch
     {
-        0 => "priority-low",
-        1 => "priority-medium",
-        2 => "priority-high",
-        3 => "priority-critical",
+        1 => "priority-low",
+        2 => "priority-medium",
+        3 => "priority-high",
         _ => "priority-medium"
     };
 
     private string GetPriorityText(int priority) => priority switch
     {
-        0 => "Thấp",
-        1 => "Trung bình",
-        2 => "Cao",
-        3 => "Khẩn cấp",
+        1 => "Thấp",
+        2 => "Trung bình",
+        3 => "Cao",
         _ => "Trung bình"
     };
 

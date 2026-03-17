@@ -17,7 +17,7 @@ namespace SmartHelpdesk_API
         public const string RetrainFilePath =  @"C:\Users\vothe\OneDrive\Documents\Đồ án chuyên ngành\Smart-Helpdesk\Backend\AI\TrainingData\sentiment_data.csv";
         public const char RetrainSeparatorChar = ',';
         public const bool RetrainHasHeader =  true;
-        public const bool RetrainAllowQuoting =  false;
+        public const bool RetrainAllowQuoting =  true;
 
          /// <summary>
         /// Train a new model with the provided dataset.

@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 using System.Net.Sockets;
@@ -57,27 +57,13 @@ namespace SmartHelpdesk.Services
                 newTicket.SentimentLabel = sentimentResult.Sentiment;
                 
                 // Tự động set Priority dựa trên sentiment
-                // Negative với score cao -> High priority
-                // Positive hoặc Neutral -> Giữ nguyên mức mặc định
-                if (sentimentResult.Sentiment == "negative" && sentimentResult.Score > 0.6f)
+                // positive -> Thấp (1), neutral -> Trung bình (2), negative -> Cao (3)
+                newTicket.Priority = sentimentResult.Sentiment switch
                 {
-                    newTicket.Priority = Priority.High;
-                    _logger.LogInformation(
-                        "Ticket auto-prioritized to HIGH due to negative sentiment. Score: {Score}", 
-                        sentimentResult.Score);
-                }
-                else if (sentimentResult.Sentiment == "negative")
-                {
-                    newTicket.Priority = Priority.Medium;
-                }
-                else
-                {
-                    // Giữ priority mặc định (Low) cho positive/neutral
-                    if (newTicket.Priority == default)
-                    {
-                        newTicket.Priority = Priority.Low;
-                    }
-                }
+                    "negative" => Priority.High,      // 3
+                    "neutral"  => Priority.Medium,     // 2
+                    _          => Priority.Low,        // 1 (positive hoặc unknown)
+                };
                 
                 _logger.LogInformation(
                     "Sentiment analyzed for new ticket: {Sentiment} (Score: {Score:F2}), Priority: {Priority}",
@@ -89,10 +75,7 @@ namespace SmartHelpdesk.Services
             {
                 // Nếu AI fail, vẫn tiếp tục tạo ticket với priority mặc định
                 _logger.LogWarning(ex, "Failed to analyze sentiment, using default priority");
-                if (newTicket.Priority == default)
-                {
-                    newTicket.Priority = Priority.Low;
-                }
+                newTicket.Priority = Priority.Low;
             }
 
             _context.Tickets.Add(newTicket);
