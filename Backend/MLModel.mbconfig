@@ -4,9 +4,9 @@
     "Version": 3,
     "EscapeCharacter": "\"",
     "ReadMultiLines": false,
-    "KeepDiacritics": false,
-    "KeepPunctuations": false,
-    "AllowQuoting": false,
+    "KeepDiacritics": true,
+    "KeepPunctuations": true,
+    "AllowQuoting": true,
     "Type": "TabularFile",
     "FilePath": "C:\\Users\\vothe\\OneDrive\\Documents\\Đồ án chuyên ngành\\Smart-Helpdesk\\Backend\\AI\\TrainingData\\sentiment_data.csv",
     "Delimiter": ",",
@@ -15,7 +15,7 @@
     "ColumnProperties": [
       {
         "ColumnName": "Text",
-        "ColumnPurpose": "Feature",
+        "ColumnPurpose": "Text",
         "ColumnDataFormat": "String",
         "IsCategorical": false,
         "Type": "Column",
@@ -43,8 +43,8 @@
         "Version": 1,
         "Type": "Trial",
         "TrainerName": "TextClassificationMulti",
-        "Score": 0.7977477121679557,
-        "RuntimeInSeconds": 194.552,
+        "Score": 0.88644424046814707,
+        "RuntimeInSeconds": 331.468,
         "Parameter": {
           "_SCHEMA_": "e0 * e1 * e2",
           "e0": {

@@ -63,9 +63,9 @@
                 <label>Độ ưu tiên</label>
                 <select @bind="filterPriority" @bind:after="ApplyFilters">
                     <option value="">Tất cả</option>
-                    <option value="2">Cao</option>
-                    <option value="1">Trung bình</option>
-                    <option value="0">Thấp</option>
+                    <option value="3">Cao</option>
+                    <option value="2">Trung bình</option>
+                    <option value="1">Thấp</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -120,7 +120,7 @@
                 <tbody>
                     @foreach (var ticket in filteredTickets)
                     {
-                        <tr class="@(ticket.Priority == 2 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
+                        <tr class="@(ticket.Priority == 3 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
                             <td class="ticket-id">
                                 <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
                                 @if (ticket.SentimentScore < 0.4)
@@ -374,7 +374,8 @@
 
         // Apply pagination
         filteredTickets = query
-            .OrderByDescending(t => t.CreatedAt)
+            .OrderByDescending(t => t.Priority)
+            .ThenByDescending(t => t.CreatedAt)
             .Skip((currentPage - 1) * pageSize)
             .Take(pageSize)
             .ToList();
@@ -390,7 +391,7 @@
 
     private void ViewTicket(Guid id)
     {
-        Navigation.NavigateTo($"/agent/tickets/{id}");
+        Navigation.NavigateTo($"/admin/tickets/{id}");
     }
 
     private string TruncateText(string text, int maxLength)
@@ -417,17 +418,17 @@
 
     private string GetPriorityClass(int priority) => priority switch
     {
-        0 => "low",
-        1 => "medium",
-        2 => "high",
+        1 => "low",
+        2 => "medium",
+        3 => "high",
         _ => ""
     };
 
     private string GetPriorityText(int priority) => priority switch
     {
-        0 => "Thấp",
-        1 => "Trung bình",
-        2 => "Cao",
+        1 => "Thấp",
+        2 => "Trung bình",
+        3 => "Cao",
         _ => "Không xác định"
     };
 
