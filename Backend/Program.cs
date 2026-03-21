@@ -82,6 +82,15 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 // AI Services
 builder.Services.AddSingleton<ISentimentService, SentimentService>();
 
+// Đăng ký GeminiService với DI, lấy API key từ cấu hình
+builder.Services.AddSingleton<GeminiService>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var apiKey = config["Gemini:ApiKey"] ?? "YOUR_GEMINI_API_KEY";
+    var model = config["Gemini:Model"] ?? "gemini-2.5-flash";
+    return new GeminiService(apiKey, model);
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

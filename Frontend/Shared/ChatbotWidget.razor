@@ -1,0 +1,339 @@
+@* Chatbot nổi hỗ trợ khách hàng *@
+
+@if (ShouldShow)
+{
+    <div class="chatbot-widget">
+        <button class="chatbot-fab @(IsOpen ? "is-open" : string.Empty)" @onclick="ToggleChat" aria-label="Mo tro ly ao">
+            <span class="chatbot-fab-icon">💬</span>
+            <span class="chatbot-fab-label">Tro ly AI</span>
+        </button>
+
+    @if (IsOpen)
+    {
+        <div class="chatbot-popup">
+            <div class="chatbot-header">
+                <div class="chatbot-title-wrap">
+                    <span class="chatbot-avatar">AI</span>
+                    <span>Tro ly Smart Helpdesk</span>
+                </div>
+                <button class="chatbot-close" @onclick="ToggleChat">×</button>
+            </div>
+
+            <div class="chatbot-window">
+                @if (Messages.Count == 0)
+                {
+                    <div class="chatbot-empty-state">Toi co the giup ban tao yeu cau, tra cuu tinh trang va huong dan xu ly nhanh.</div>
+                }
+                @foreach (var message in Messages)
+                {
+                    <div class="chat-row @(message.IsUser ? "chat-row-user" : "chat-row-bot")">
+                        <div class="@(message.IsUser ? "user-message" : "bot-message")">
+                            <b>@(message.IsUser ? "Bạn" : "Bot"):</b> @message.Text
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="chatbot-input">
+                <input @bind="UserInput" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Nhập câu hỏi..." />
+                <button @onclick="SendMessage" disabled="@(IsLoading || string.IsNullOrWhiteSpace(UserInput))">Gửi</button>
+            </div>
+
+            @if (IsLoading)
+            {
+                <div class="loading">Đang xử lý...</div>
+            }
+        </div>
+    }
+    </div>
+}
+
+@code {
+    private bool IsOpen { get; set; }
+    private string? UserInput { get; set; }
+    private bool IsLoading { get; set; }
+    private List<ChatMessage> Messages { get; set; } = new();
+    private bool ShouldShow => Nav.Uri.Contains("/customer", StringComparison.OrdinalIgnoreCase);
+
+    private void ToggleChat()
+    {
+        IsOpen = !IsOpen;
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(UserInput)) return;
+
+        var userMsg = new ChatMessage { Text = UserInput!, IsUser = true };
+        Messages.Add(userMsg);
+
+        var question = UserInput;
+        UserInput = string.Empty;
+        IsLoading = true;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/ai/ask", question);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<GeminiResponse>();
+                Messages.Add(new ChatMessage { Text = result?.Answer ?? "(Không có phản hồi)", IsUser = false });
+            }
+            else
+            {
+                Messages.Add(new ChatMessage { Text = "Lỗi khi gọi API.", IsUser = false });
+            }
+        }
+        catch
+        {
+            Messages.Add(new ChatMessage { Text = "Không thể kết nối server.", IsUser = false });
+        }
+
+        IsLoading = false;
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _ = SendMessage();
+        }
+    }
+
+    [Inject] public HttpClient Http { get; set; } = default!;
+    [Inject] public NavigationManager Nav { get; set; } = default!;
+
+    public class ChatMessage
+    {
+        public string Text { get; set; } = string.Empty;
+        public bool IsUser { get; set; }
+    }
+
+    public class GeminiResponse
+    {
+        public string? Answer { get; set; }
+    }
+}
+
+<style>
+.chatbot-widget {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+}
+
+.chatbot-fab {
+    height: 58px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #0f8e8e, #2673d8);
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 12px 30px rgba(24, 89, 175, 0.35);
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 18px;
+    animation: chatbot-pulse 2.4s infinite;
+}
+
+.chatbot-fab.is-open {
+    animation: none;
+}
+
+.chatbot-fab-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.chatbot-popup {
+    position: absolute;
+    bottom: 72px;
+    right: 0;
+    width: min(390px, calc(100vw - 28px));
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 20px 45px rgba(22, 47, 84, 0.32);
+    border: 1px solid #dbe5f5;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform-origin: bottom right;
+    animation: popup-enter 0.24s ease-out;
+}
+
+.chatbot-header {
+    background: linear-gradient(120deg, #1167be 0%, #1a93ac 100%);
+    color: #ffffff;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 700;
+}
+
+.chatbot-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chatbot-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.chatbot-close {
+    background: none;
+    border: none;
+    color: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.chatbot-window {
+    min-height: 180px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: linear-gradient(180deg, #f9fcff 0%, #f2f7ff 100%);
+    padding: 12px;
+}
+
+.chatbot-empty-state {
+    color: #5e708a;
+    background: #ffffff;
+    border: 1px dashed #c8d6ef;
+    border-radius: 12px;
+    padding: 10px;
+    font-size: 13px;
+}
+
+.chat-row {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.chat-row-user {
+    justify-content: flex-end;
+}
+
+.chat-row-bot {
+    justify-content: flex-start;
+}
+
+.user-message {
+    max-width: 88%;
+    text-align: left;
+    color: #0f3a68;
+    margin-bottom: 0;
+    background: #dff1ff;
+    border: 1px solid #b8dcff;
+    border-radius: 14px 14px 4px 14px;
+    padding: 8px 10px;
+}
+
+.bot-message {
+    max-width: 88%;
+    text-align: left;
+    color: #263f62;
+    margin-bottom: 0;
+    background: #ffffff;
+    border: 1px solid #d6e3f5;
+    border-radius: 14px 14px 14px 4px;
+    padding: 8px 10px;
+}
+
+.chatbot-input {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-top: 1px solid #e3ebf8;
+    background: #ffffff;
+}
+
+.chatbot-input input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #c9d8ef;
+    outline: none;
+}
+
+.chatbot-input input:focus {
+    border-color: #1d86bf;
+    box-shadow: 0 0 0 3px rgba(29, 134, 191, 0.14);
+}
+
+.chatbot-input button {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #1f7dda, #13839b);
+    color: #ffffff;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.loading {
+    color: #6e7f96;
+    margin: 0 10px 10px;
+    text-align: center;
+    font-size: 13px;
+}
+
+@@media (max-width: 768px) {
+    .chatbot-widget {
+        right: 12px;
+        bottom: 16px;
+    }
+
+    .chatbot-fab {
+        height: 54px;
+        padding: 0 14px;
+    }
+
+    .chatbot-fab-label {
+        font-size: 13px;
+    }
+}
+
+@@keyframes popup-enter {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@@keyframes chatbot-pulse {
+    0% {
+        box-shadow: 0 10px 24px rgba(24, 89, 175, 0.33), 0 0 0 0 rgba(24, 137, 165, 0.35);
+    }
+
+    70% {
+        box-shadow: 0 10px 24px rgba(24, 89, 175, 0.33), 0 0 0 10px rgba(24, 137, 165, 0);
+    }
+
+    100% {
+        box-shadow: 0 10px 24px rgba(24, 89, 175, 0.33), 0 0 0 0 rgba(24, 137, 165, 0);
+    }
+}
+</style>
