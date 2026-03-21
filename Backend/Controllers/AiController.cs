@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SmartHelpdesk.DTOs.Requests;
 using SmartHelpdesk.DTOs.Responses;
 using SmartHelpdesk.Interfaces;
+using SmartHelpdesk.Services;
 
 namespace SmartHelpdesk.Controllers;
 
@@ -14,13 +15,16 @@ public class AiController : ControllerBase
 {
     private readonly ISentimentService _sentimentService;
     private readonly ILogger<AiController> _logger;
+    private readonly GeminiService _geminiService;
 
     public AiController(
         ISentimentService sentimentService,
-        ILogger<AiController> logger)
+        ILogger<AiController> logger,
+        GeminiService geminiService)
     {
         _sentimentService = sentimentService;
         _logger = logger;
+        _geminiService = geminiService;
     }
 
     /// <summary>
@@ -83,6 +87,27 @@ public class AiController : ControllerBase
         {
             _logger.LogError(ex, "Error in AnalyzeSentimentQuick endpoint");
             return StatusCode(500, new { error = "Failed to analyze sentiment" });
+        }
+    }
+    /// <summary>
+    /// Gửi câu hỏi tới Gemini AI và nhận phản hồi
+    /// </summary>
+    /// <param name="question">Câu hỏi từ người dùng</param>
+    /// <returns>Phản hồi từ Gemini AI</returns>
+    [HttpPost("ask")]
+    public async Task<IActionResult> AskGemini([FromBody] string question)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+            return BadRequest(new { error = "Question is required" });
+        try
+        {
+            var answer = await _geminiService.AskGeminiAsync(question);
+            return Ok(new { answer });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in AskGemini endpoint");
+            return StatusCode(500, new { error = "Failed to get answer from Gemini" });
         }
     }
 }
