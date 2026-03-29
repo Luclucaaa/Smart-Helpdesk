@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -7,6 +7,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using SmartHelpdesk.Common.Identity;
 using SmartHelpdesk.Data.Entities;
 using SmartHelpdesk.DTOs.Requests;
 using SmartHelpdesk.Interfaces;
@@ -113,25 +114,17 @@ namespace SmartHelpdesk.Controllers
         [Microsoft.AspNetCore.Authorization.Authorize]
         public async Task<IActionResult> GetCurrentUser()
         {
-            var emailFromToken = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
-                ?? User.FindFirst("sub")?.Value;
+            var user = await _userManager.GetCurrentUserAsync(User);
+            if (user == null)
+            {
+                return Unauthorized(new { error = "Không xác định được người dùng từ token" });
+            }
             
-            Console.WriteLine($"DEBUG Me: Email from token = {emailFromToken}");
+            Console.WriteLine($"DEBUG Me: User Id = {user.Id}, Email = {user.Email}");
             Console.WriteLine($"DEBUG Me: All claims:");
             foreach (var claim in User.Claims)
             {
                 Console.WriteLine($"  - {claim.Type}: {claim.Value}");
-            }
-            
-            if (string.IsNullOrEmpty(emailFromToken))
-            {
-                return Unauthorized(new { error = "Token không chứa thông tin email" });
-            }
-            
-            var user = await _userManager.FindByEmailAsync(emailFromToken);
-            if (user == null)
-            {
-                return NotFound(new { error = $"Không tìm thấy user với email: {emailFromToken}" });
             }
             
             var roles = await _userManager.GetRolesAsync(user);

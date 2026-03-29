@@ -310,9 +310,10 @@
     private bool isSending = false;
     private bool isUpdatingStatus = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        await LoadTicketDetail();
+        if (Id != Guid.Empty)
+            await LoadTicketDetail();
     }
 
     private async Task LoadTicketDetail()
