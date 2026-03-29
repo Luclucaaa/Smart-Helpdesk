@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using SmartHelpdesk.Common.Identity;
 using SmartHelpdesk.Common.Exceptions;
 using SmartHelpdesk.Data.Entities;
 using SmartHelpdesk.DTOs.Requests;
@@ -81,8 +82,7 @@ namespace SmartHelpdesk.Controllers
         [Authorize]
         public async Task<IActionResult> DebugTicket(Guid id)
         {
-            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            var user = await _userManager.GetCurrentUserAsync(User);
             
             try
             {
@@ -116,10 +116,7 @@ namespace SmartHelpdesk.Controllers
             var allClaims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
             var roles = User.Claims.Where(c => c.Type == ClaimTypes.Role || c.Type == "role").Select(c => c.Value).ToList();
             
-            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
-                ?? User.FindFirst("sub")?.Value;
-            
-            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            var user = await _userManager.GetCurrentUserAsync(User);
             
             // Lấy tất cả tickets trong database
             var allTicketsCount = await _ticketsService.GetTickets(new TicketsQueryFilters { Take = 1000, Skip = 0 });
@@ -133,7 +130,7 @@ namespace SmartHelpdesk.Controllers
             {
                 Claims = allClaims,
                 Roles = roles,
-                EmailFromToken = currentUserEmail,
+                EmailFromToken = user?.Email ?? User.FindFirst(ClaimTypes.Email)?.Value,
                 UserFound = user != null,
                 UserId = user?.Id,
                 UserEmail = user?.Email,
@@ -176,16 +173,14 @@ namespace SmartHelpdesk.Controllers
         {
             try
             {
-                // Lấy userId từ token
-                var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                var user = await _userManager.FindByEmailAsync(currentUserEmail);
+                var user = await _userManager.GetCurrentUserAsync(User);
                 
                 if (user == null)
                 {
                     return Unauthorized("Vui lòng đăng nhập");
                 }
                 
-                Console.WriteLine($"DEBUG GetMyTickets: userId = {user.Id}, email = {currentUserEmail}");
+                Console.WriteLine($"DEBUG GetMyTickets: userId = {user.Id}, email = {user.Email}");
                 
                 // Chỉ lấy tickets của user hiện tại
                 var tickets = await _ticketsService.GetTicketsRaw(filters.Take, filters.Skip, user.Id);
@@ -211,16 +206,15 @@ namespace SmartHelpdesk.Controllers
                 
                 Console.WriteLine($"DEBUG TicketDetails: Found ticket, UserId = {ticket.UserId}");
 
-                var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-                Console.WriteLine($"DEBUG TicketDetails: currentUserEmail = {currentUserEmail}");
-
-                var user = await _userManager.FindByEmailAsync(currentUserEmail);
+                var user = await _userManager.GetCurrentUserAsync(User);
                 
                 if (user == null)
                 {
-                    Console.WriteLine($"DEBUG TicketDetails: User not found for email {currentUserEmail}");
+                    Console.WriteLine($"DEBUG TicketDetails: User not found from claims");
                     return Unauthorized("Vui lòng đăng nhập");
                 }
+                
+                Console.WriteLine($"DEBUG TicketDetails: currentUserEmail = {user.Email}");
                 
                 Console.WriteLine($"DEBUG TicketDetails: Found user {user.Id}, checking roles...");
                 
@@ -256,9 +250,7 @@ namespace SmartHelpdesk.Controllers
         [Authorize]
         public async Task<IActionResult> CreateTicket(CreateTicketDTO ticketDTO)
         {
-            // Tự động lấy UserId từ token
-            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var user = await _userManager.FindByEmailAsync(currentUserEmail);
+            var user = await _userManager.GetCurrentUserAsync(User);
             if (user == null)
             {
                 return Unauthorized("Vui lòng đăng nhập để gửi yêu cầu");
@@ -283,9 +275,10 @@ namespace SmartHelpdesk.Controllers
                 return BadRequest(validationRes);
             try
             {
-                var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null)
+                    return Unauthorized("Vui lòng đăng nhập");
 
-                var user = await _userManager.FindByEmailAsync(currentUserEmail);
                 var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
 
                 if (isCustomer && user.CreatedTickets.FirstOrDefault(t => t.Id == id) == null)
@@ -308,7 +301,7 @@ namespace SmartHelpdesk.Controllers
         }
 
         [HttpPatch("UpdateTicketStatus/{id}")]
-        [Authorize(Roles = "Admin,Nhân viên")]
+        [Authorize(Roles = "Admin,Agent,Nhân viên")]
         public async Task<IActionResult> UpdateTicketStatus(Guid id, UpdateTicketStatusDTO statusDTO)
         {
             try
@@ -357,9 +350,10 @@ namespace SmartHelpdesk.Controllers
         public async Task<IActionResult> GetCommentsToTicket(Guid ticketId)
         {
 
-            var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var user = await _userManager.GetCurrentUserAsync(User);
+            if (user == null)
+                return Unauthorized("Vui lòng đăng nhập");
 
-            var user = await _userManager.FindByEmailAsync(currentUserEmail);
             var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
 
 

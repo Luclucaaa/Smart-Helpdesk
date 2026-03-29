@@ -1,9 +1,9 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using SmartHelpdesk.Common.Identity;
 using SmartHelpdesk.Common.Exceptions;
 using SmartHelpdesk.Data.Entities;
 using SmartHelpdesk.DTOs.Requests;
@@ -39,9 +39,10 @@ namespace SmartHelpdesk.Controllers
 
             try
             {
-                var currentUserEmail = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null)
+                    return Unauthorized("Vui lòng đăng nhập");
 
-                var user = await _userManager.FindByEmailAsync(currentUserEmail);
                 var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
 
                 if (isCustomer && user.Comments.FirstOrDefault(c => c.Id == id) == null)

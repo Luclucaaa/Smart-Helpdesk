@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -49,10 +49,13 @@ namespace SmartHelpdesk.Services
 
         private async Task<List<Claim>> GetClaims(User user)
         {
+            // NameIdentifier + Sub = user Id (chuẩn Identity / UserManager.GetUserAsync)
+            var userId = user.Id.ToString();
             var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Email),
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(JwtRegisteredClaimNames.Sub, userId),
+                new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             };
             var roles = await _userManager.GetRolesAsync(user);
