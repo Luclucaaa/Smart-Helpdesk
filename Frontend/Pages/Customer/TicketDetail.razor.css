@@ -297,6 +297,47 @@
     color: #667eea;
 }
 
+/* Attachment image styles */
+.attachment-item-wrapper {
+    display: inline-flex;
+}
+
+.attachment-image-item {
+    flex-direction: column;
+    align-items: center;
+    padding: 8px;
+    gap: 6px;
+    max-width: 160px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.attachment-image-item:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);
+    transform: translateY(-2px);
+    transition: all 0.2s;
+}
+
+.attachment-preview {
+    width: 140px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+    display: block;
+}
+
+.attachment-filename {
+    font-size: 0.75rem;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+    text-align: center;
+}
+
 /* Chat Section */
 .chat-section {
     display: flex;

@@ -137,6 +137,7 @@
 
 /* File Upload */
 .file-upload-area {
+    position: relative;
     border: 2px dashed #d1d5db;
     border-radius: 16px;
     padding: 2rem;
@@ -240,6 +241,8 @@
     font-weight: 500;
     font-size: 0.9rem;
 }
+
+/* (add-more-area used in previous approach; kept no-op) */
 
 /* Banners */
 .error-banner, .success-banner {

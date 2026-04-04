@@ -26,15 +26,24 @@ namespace SmartHelpdesk.Controllers
         private readonly ITicketsService _ticketsService;
         private readonly UserManager<User> _userManager;
         private readonly ICommentsService _commentsService;
+        private readonly IFileService _fileService;
         private IValidator<CreateCommentDTO> _createCommentValidator;
         private IValidator<CreateTicketDTO> _createTicketValidator;
         private IValidator<UpdateTicketDTO> _updateTicketValidator;
 
-        public TicketsController(ITicketsService ticketsService, UserManager<User> userManager, ICommentsService commentsService, IValidator<CreateTicketDTO> createTicketValidator, IValidator<UpdateTicketDTO> updateTicketValidator, IValidator<CreateCommentDTO> createCommentValidator)
+        public TicketsController(
+            ITicketsService ticketsService,
+            UserManager<User> userManager,
+            ICommentsService commentsService,
+            IFileService fileService,
+            IValidator<CreateTicketDTO> createTicketValidator,
+            IValidator<UpdateTicketDTO> updateTicketValidator,
+            IValidator<CreateCommentDTO> createCommentValidator)
         {
             _ticketsService = ticketsService;
             _userManager = userManager;
             _commentsService = commentsService;
+            _fileService = fileService;
             _createTicketValidator = createTicketValidator;
             _createCommentValidator = createCommentValidator;
             _updateTicketValidator = updateTicketValidator;
@@ -265,6 +274,80 @@ namespace SmartHelpdesk.Controllers
             var ticketId = await _ticketsService.CreateTicket(ticketDTO);
 
             return Ok(ticketId);
+        }
+
+        [HttpPost("CreateTicketWithAttachments")]
+        [Authorize]
+        [RequestSizeLimit(50 * 1024 * 1024)] // 50MB max
+        [RequestFormLimits(MultipartBodyLengthLimit = 50 * 1024 * 1024)]
+        public async Task<IActionResult> CreateTicketWithAttachments(
+            [FromForm] string Description,
+            [FromForm] string? ProductName,
+            [FromForm] int Priority,
+            [FromForm] IFormFileCollection files)
+        {
+            try
+            {
+                Console.WriteLine($"DEBUG CreateTicketWithAttachments: Description={Description?.Substring(0, Math.Min(30, Description?.Length ?? 0))}, files={files?.Count ?? 0}");
+
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null)
+                {
+                    return Unauthorized("Vui lòng đăng nhập để gửi yêu cầu");
+                }
+
+                var ticketDTO = new CreateTicketDTO
+                {
+                    Description = Description,
+                    ProductName = ProductName,
+                    Priority = (SmartHelpdesk.Data.Enums.Priority)Priority,
+                    UserId = user.Id
+                };
+
+                var validationRes = _createTicketValidator.Validate(ticketDTO);
+                if (!validationRes.IsValid)
+                    return BadRequest(validationRes);
+
+                var ticketId = await _ticketsService.CreateTicket(ticketDTO);
+                Console.WriteLine($"DEBUG CreateTicketWithAttachments: ticketId={ticketId}");
+
+                // Nếu có file thì tạo 1 comment đầu tiên để gắn attachments theo CommentId.
+                if (files != null && files.Count > 0)
+                {
+                    var commentText = "Khách hàng gửi yêu cầu kèm file đính kèm.";
+
+                    var commentDTO = new CreateCommentDTO
+                    {
+                        TicketId = ticketId,
+                        UserId = user.Id,
+                        Text = commentText
+                    };
+
+                    var commentValidationRes = _createCommentValidator.Validate(commentDTO);
+                    if (!commentValidationRes.IsValid)
+                        return BadRequest(commentValidationRes);
+
+                    var commentId = await _commentsService.CreateComment(commentDTO);
+                    Console.WriteLine($"DEBUG CreateTicketWithAttachments: commentId={commentId}");
+
+                    foreach (var file in files)
+                    {
+                        if (file == null || file.Length == 0) continue;
+                        Console.WriteLine($"DEBUG: Saving attachment: {file.FileName}, size={file.Length}");
+                        await _fileService.SaveAttachment(file, commentId);
+                        Console.WriteLine($"DEBUG: Attachment saved: {file.FileName}");
+                    }
+                }
+
+                Console.WriteLine($"DEBUG CreateTicketWithAttachments: Done, returning ticketId={ticketId}");
+                return Ok(ticketId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR CreateTicketWithAttachments: {ex.Message}");
+                Console.WriteLine($"Stack: {ex.StackTrace}");
+                return StatusCode(500, new { error = ex.Message, detail = ex.StackTrace });
+            }
         }
 
         [HttpPut("UpdateTicket/{id}")]

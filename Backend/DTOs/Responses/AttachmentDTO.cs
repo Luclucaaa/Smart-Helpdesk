@@ -1,9 +1,10 @@
-﻿namespace SmartHelpdesk.DTOs.Responses
+namespace SmartHelpdesk.DTOs.Responses
 {
     public class AttachmentDTO
     {
         public Guid Id { get; set; }
         public string FileName { get; set; } = null!;
         public string Path { get; set; } = null!;
+        public string Url { get; set; } = null!;
     }
 }

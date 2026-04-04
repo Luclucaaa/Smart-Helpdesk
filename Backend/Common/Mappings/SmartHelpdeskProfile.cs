@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using SmartHelpdesk.Data.Entities;
 using SmartHelpdesk.DTOs.Requests;
 using SmartHelpdesk.DTOs.Responses;
@@ -34,7 +34,9 @@ namespace SmartHelpdesk.Common.Mappings
                 .ForMember(dest => dest.AssignedToName, opt => opt.MapFrom(src => src.AssignedTo == null ? null : src.AssignedTo.Name))
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product == null ? src.ProductName : src.Product.Name));
 
-            CreateMap<Attachment, AttachmentDTO>();
+            CreateMap<Attachment, AttachmentDTO>()
+                .ForMember(dest => dest.Url, opt => opt.MapFrom(src =>
+                    "/" + src.Path.Replace("\\", "/").Replace("\\", "/")));
         }
 
     }

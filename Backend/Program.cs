@@ -219,5 +219,16 @@ app.UseCors("AllowBlazorClient");
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Đảm bảo wwwroot và attachments folder tồn tại trước khi serve static files
+var webRootPath = app.Environment.WebRootPath;
+if (string.IsNullOrEmpty(webRootPath))
+{
+    webRootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+    app.Environment.WebRootPath = webRootPath;
+}
+Directory.CreateDirectory(Path.Combine(webRootPath, "attachments"));
+
+app.UseStaticFiles();
 app.MapControllers();
-app.Run();
+app.Run();
