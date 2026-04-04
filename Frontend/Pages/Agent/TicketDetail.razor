@@ -350,7 +350,8 @@
                         UserName = ticketResponse.UserName,
                         UserEmail = ticketResponse.UserEmail,
                         ProductName = ticketResponse.ProductName,
-                        CreatedAt = ticketResponse.CreatedAt
+                        CreatedAt = ticketResponse.CreatedAt,
+                        Attachments = ticketResponse.Attachments
                     };
                     
                     if (ticketResponse.Comments != null)
@@ -548,6 +549,7 @@
         public string? AssignedToEmail { get; set; }
         public Guid? ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
+        public List<AttachmentDto>? Attachments { get; set; }
         public List<CommentResponse>? Comments { get; set; }
     }
 
