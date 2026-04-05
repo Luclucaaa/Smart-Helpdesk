@@ -4,8 +4,16 @@
 {
     <div class="chatbot-widget">
         <button class="chatbot-fab @(IsOpen ? "is-open" : string.Empty)" @onclick="ToggleChat" aria-label="Mo tro ly ao">
-            <span class="chatbot-fab-icon">💬</span>
-            <span class="chatbot-fab-label">Tro ly AI</span>
+            <span class="chatbot-fab-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="5.5" y="8" width="13" height="10" rx="3" stroke="currentColor" stroke-width="1.7" />
+                    <path d="M12 4.2V6.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                    <circle cx="9.5" cy="12.6" r="1" fill="currentColor" />
+                    <circle cx="14.5" cy="12.6" r="1" fill="currentColor" />
+                    <path d="M9 15H15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                </svg>
+            </span>
+            <span class="chatbot-fab-label">AI Chat</span>
         </button>
 
     @if (IsOpen)
@@ -13,8 +21,17 @@
         <div class="chatbot-popup">
             <div class="chatbot-header">
                 <div class="chatbot-title-wrap">
-                    <span class="chatbot-avatar">AI</span>
-                    <span>Tro ly Smart Helpdesk</span>
+                    <span class="chatbot-avatar" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7.5 7.2H16.5C18.16 7.2 19.5 8.54 19.5 10.2V14.2C19.5 15.86 18.16 17.2 16.5 17.2H11.9L8.2 19.8V17.2H7.5C5.84 17.2 4.5 15.86 4.5 14.2V10.2C4.5 8.54 5.84 7.2 7.5 7.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                            <path d="M8.3 10.9H15.7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                            <path d="M8.3 13.6H13.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                        </svg>
+                    </span>
+                    <div class="chatbot-heading">
+                        <span class="chatbot-title">AI Chatbot</span>
+                        <span class="chatbot-subtitle">Truc tuyen</span>
+                    </div>
                 </div>
                 <button class="chatbot-close" @onclick="ToggleChat">×</button>
             </div>
@@ -27,8 +44,20 @@
                 @foreach (var message in Messages)
                 {
                     <div class="chat-row @(message.IsUser ? "chat-row-user" : "chat-row-bot")">
+                        @if (!message.IsUser)
+                        {
+                            <span class="bot-avatar-mini" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="5.5" y="8" width="13" height="10" rx="3" stroke="currentColor" stroke-width="1.7" />
+                                    <path d="M12 4.2V6.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                                    <circle cx="9.5" cy="12.6" r="1" fill="currentColor" />
+                                    <circle cx="14.5" cy="12.6" r="1" fill="currentColor" />
+                                    <path d="M9 15H15" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+                                </svg>
+                            </span>
+                        }
                         <div class="@(message.IsUser ? "user-message" : "bot-message")">
-                            <b>@(message.IsUser ? "Bạn" : "Bot"):</b> @message.Text
+                            @message.Text
                         </div>
                     </div>
                 }
@@ -36,7 +65,12 @@
 
             <div class="chatbot-input">
                 <input @bind="UserInput" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Nhập câu hỏi..." />
-                <button @onclick="SendMessage" disabled="@(IsLoading || string.IsNullOrWhiteSpace(UserInput))">Gửi</button>
+                <button @onclick="SendMessage" disabled="@(IsLoading || string.IsNullOrWhiteSpace(UserInput))" aria-label="Gui tin nhan">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M21 3L10 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M21 3L14 21L10 14L3 10L21 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+                    </svg>
+                </button>
             </div>
 
             @if (IsLoading)
@@ -118,30 +152,37 @@
 <style>
 .chatbot-widget {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 18px;
+    right: 18px;
     z-index: 9999;
+    font-family: "Segoe UI", "Trebuchet MS", sans-serif;
 }
 
 .chatbot-fab {
-    height: 58px;
+    height: 54px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #0f8e8e, #2673d8);
+    background: linear-gradient(135deg, #4b92f0, #2f6ee7);
     color: #ffffff;
-    border: none;
-    box-shadow: 0 12px 30px rgba(24, 89, 175, 0.35);
-    font-size: 22px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 12px 26px rgba(28, 78, 171, 0.34);
+    font-size: 19px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 0 18px;
+    padding: 0 16px;
     animation: chatbot-pulse 2.4s infinite;
+    transition: transform 0.2s ease, filter 0.2s ease;
 }
 
 .chatbot-fab.is-open {
     animation: none;
+}
+
+.chatbot-fab:hover {
+    transform: translateY(-1px);
+    filter: saturate(1.08);
 }
 
 .chatbot-fab-label {
@@ -150,15 +191,28 @@
     letter-spacing: 0.2px;
 }
 
+.chatbot-fab-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chatbot-fab-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
 .chatbot-popup {
     position: absolute;
-    bottom: 72px;
+    bottom: 64px;
     right: 0;
-    width: min(390px, calc(100vw - 28px));
-    background: #ffffff;
-    border-radius: 16px;
-    box-shadow: 0 20px 45px rgba(22, 47, 84, 0.32);
-    border: 1px solid #dbe5f5;
+    width: min(390px, calc(100vw - 18px));
+    background: #f3f4f7;
+    border-radius: 20px;
+    box-shadow: 0 20px 46px rgba(18, 46, 93, 0.3);
+    border: 1px solid #d8dfea;
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -168,13 +222,13 @@
 }
 
 .chatbot-header {
-    background: linear-gradient(120deg, #1167be 0%, #1a93ac 100%);
+    background: linear-gradient(120deg, #3f88ec 0%, #245ee3 100%);
     color: #ffffff;
-    padding: 12px 14px;
+    padding: 14px 16px 12px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-weight: 700;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .chatbot-title-wrap {
@@ -187,44 +241,71 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.22);
     border: 1px solid rgba(255, 255, 255, 0.3);
-    font-size: 12px;
+}
+
+.chatbot-avatar svg {
+    width: 18px;
+    height: 18px;
+}
+
+.chatbot-heading {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.chatbot-title {
+    font-size: 24px;
     font-weight: 800;
+    letter-spacing: 0.1px;
+    line-height: 1;
+}
+
+.chatbot-subtitle {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-top: 1px;
+    line-height: 1;
 }
 
 .chatbot-close {
-    background: none;
+    background: rgba(255, 255, 255, 0.18);
     border: none;
     color: #ffffff;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
     font-size: 24px;
     line-height: 1;
     cursor: pointer;
 }
 
 .chatbot-window {
-    min-height: 180px;
-    max-height: 320px;
+    min-height: 210px;
+    max-height: 330px;
     overflow-y: auto;
-    background: linear-gradient(180deg, #f9fcff 0%, #f2f7ff 100%);
-    padding: 12px;
+    background: #f3f4f7;
+    padding: 16px;
 }
 
 .chatbot-empty-state {
-    color: #5e708a;
-    background: #ffffff;
-    border: 1px dashed #c8d6ef;
-    border-radius: 12px;
-    padding: 10px;
-    font-size: 13px;
+    color: #1f3658;
+    background: #f7f7fa;
+    border: 1px dashed #c9d4e8;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 .chat-row {
     display: flex;
-    margin-bottom: 8px;
+    margin-bottom: 12px;
 }
 
 .chat-row-user {
@@ -233,63 +314,104 @@
 
 .chat-row-bot {
     justify-content: flex-start;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.bot-avatar-mini {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #3f88ec;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 12px rgba(45, 92, 174, 0.25);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.bot-avatar-mini svg {
+    width: 16px;
+    height: 16px;
 }
 
 .user-message {
-    max-width: 88%;
+    max-width: 84%;
     text-align: left;
-    color: #0f3a68;
+    color: #123a66;
     margin-bottom: 0;
-    background: #dff1ff;
-    border: 1px solid #b8dcff;
-    border-radius: 14px 14px 4px 14px;
-    padding: 8px 10px;
+    background: #dce9ff;
+    border: 1px solid #b7cbf3;
+    border-radius: 16px 16px 6px 16px;
+    padding: 11px 13px;
+    line-height: 1.5;
+    font-size: 14px;
 }
 
 .bot-message {
-    max-width: 88%;
+    max-width: 84%;
     text-align: left;
-    color: #263f62;
+    color: #253f64;
     margin-bottom: 0;
-    background: #ffffff;
-    border: 1px solid #d6e3f5;
-    border-radius: 14px 14px 14px 4px;
-    padding: 8px 10px;
+    background: #e9ebf0;
+    border: 1px solid #d7dce8;
+    border-radius: 16px 16px 16px 6px;
+    padding: 11px 13px;
+    white-space: pre-line;
+    line-height: 1.6;
+    box-shadow: none;
+    font-size: 14px;
 }
 
 .chatbot-input {
     display: flex;
-    gap: 8px;
-    padding: 10px;
-    border-top: 1px solid #e3ebf8;
-    background: #ffffff;
+    gap: 10px;
+    padding: 12px;
+    border-top: 1px solid #d8deea;
+    background: #eef1f6;
 }
 
 .chatbot-input input {
     flex: 1;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid #c9d8ef;
+    padding: 11px 14px;
+    border-radius: 999px;
+    border: 1px solid #c9d2e1;
+    background: #f9fafc;
     outline: none;
+    font-size: 14px;
 }
 
 .chatbot-input input:focus {
-    border-color: #1d86bf;
-    box-shadow: 0 0 0 3px rgba(29, 134, 191, 0.14);
+    border-color: #3a7bea;
+    box-shadow: 0 0 0 3px rgba(58, 123, 234, 0.18);
 }
 
 .chatbot-input button {
-    padding: 10px 14px;
-    border-radius: 10px;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
     border: none;
-    background: linear-gradient(135deg, #1f7dda, #13839b);
+    background: linear-gradient(135deg, #8bb5f2, #77a6ea);
     color: #ffffff;
-    font-weight: 700;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chatbot-input button:hover {
+    filter: brightness(1.04);
+}
+
+.chatbot-input button svg {
+    width: 18px;
+    height: 18px;
 }
 
 .loading {
-    color: #6e7f96;
+    color: #5a6f8f;
     margin: 0 10px 10px;
     text-align: center;
     font-size: 13px;
@@ -297,17 +419,38 @@
 
 @@media (max-width: 768px) {
     .chatbot-widget {
-        right: 12px;
-        bottom: 16px;
+        right: 10px;
+        bottom: 12px;
     }
 
     .chatbot-fab {
-        height: 54px;
+        height: 52px;
         padding: 0 14px;
     }
 
     .chatbot-fab-label {
-        font-size: 13px;
+        font-size: 12px;
+    }
+
+    .chatbot-popup {
+        width: min(360px, calc(100vw - 10px));
+        bottom: 64px;
+    }
+
+    .chatbot-title {
+        font-size: 18px;
+    }
+
+    .chatbot-subtitle {
+        font-size: 14px;
+    }
+
+    .bot-message,
+    .user-message,
+    .chatbot-empty-state,
+    .chatbot-input input,
+    .loading {
+        font-size: 14px;
     }
 }
 

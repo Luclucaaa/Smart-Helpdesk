@@ -99,9 +99,13 @@ public class AiController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(question))
             return BadRequest(new { error = "Question is required" });
+
+        if (question.Length > 1000)
+            return BadRequest(new { error = "Question is too long. Maximum 1000 characters." });
+
         try
         {
-            var answer = await _geminiService.AskGeminiAsync(question);
+            var answer = await _geminiService.AskGeminiAsync(question.Trim());
             return Ok(new { answer });
         }
         catch (Exception ex)

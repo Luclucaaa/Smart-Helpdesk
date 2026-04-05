@@ -86,9 +86,28 @@ builder.Services.AddSingleton<ISentimentService, SentimentService>();
 builder.Services.AddSingleton<GeminiService>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
+    var env = sp.GetRequiredService<IHostEnvironment>();
     var apiKey = config["Gemini:ApiKey"] ?? "YOUR_GEMINI_API_KEY";
     var model = config["Gemini:Model"] ?? "gemini-2.5-flash";
-    return new GeminiService(apiKey, model);
+    var topK = config.GetValue<int?>("Rag:TopK") ?? 5;
+    var maxContextChars = config.GetValue<int?>("Rag:MaxContextChars") ?? 5500;
+    var useVectorDb = config.GetValue<bool?>("Rag:UseVectorDb") ?? true;
+    var qdrantUrl = config["Rag:VectorDb:Url"] ?? "http://localhost:6333";
+    var qdrantCollection = config["Rag:VectorDb:Collection"] ?? "smarthelpdesk_kb";
+    var qdrantApiKey = config["Rag:VectorDb:ApiKey"];
+    var embeddingModel = config["Rag:EmbeddingModel"] ?? "text-embedding-004";
+    var projectRoot = Path.GetFullPath(Path.Combine(env.ContentRootPath, ".."));
+    return new GeminiService(
+        apiKey,
+        model,
+        projectRoot,
+        topK,
+        maxContextChars,
+        useVectorDb,
+        qdrantUrl,
+        qdrantCollection,
+        qdrantApiKey,
+        embeddingModel);
 });
 
 builder.Services.AddControllers();
