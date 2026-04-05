@@ -179,6 +179,17 @@ namespace SmartHelpdesk.Services
                 }).ToList()
             };
 
+            // Aggregate attachments from comment attachments (Attachment entity is linked to CommentId).
+            var commentIds = comments.Select(c => c.Id).Distinct().ToList();
+            if (commentIds.Count > 0)
+            {
+                var attachmentEntities = await _context.Attachments
+                    .Where(a => commentIds.Contains(a.CommentId))
+                    .ToListAsync();
+
+                ticketDto.Attachments = _mapper.Map<List<Attachment>, List<AttachmentDTO>>(attachmentEntities);
+            }
+
             return ticketDto;
         }
 

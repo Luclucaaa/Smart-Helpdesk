@@ -63,13 +63,17 @@
                     </svg>
                     Đính kèm ảnh/file <span class="optional-label">(tùy chọn)</span>
                 </label>
-                <div class="file-upload-area" @onclick="TriggerFileInput">
-                    <InputFile @ref="fileInputRef" 
-                               OnChange="HandleFileSelected" 
-                               accept="image/*,.pdf,.doc,.docx" 
-                               multiple 
-                               style="display: none;" />
-                    
+
+                <!-- InputFile ẩn, được trigger bởi label bên dưới -->
+                <InputFile
+                    id="customer-ticket-file-input"
+                    OnChange="HandleFileSelected"
+                    accept="image/*,.pdf,.doc,.docx"
+                    multiple
+                    style="display: none;" />
+
+                <!-- Dùng label for= để native trigger file input, tránh lỗi "File chooser dialog can only be shown with a user activation" -->
+                <label for="customer-ticket-file-input" class="file-upload-area" style="cursor: pointer; display: block;">
                     @if (selectedFiles.Count == 0)
                     {
                         <div class="upload-placeholder">
@@ -87,7 +91,7 @@
                         <div class="selected-files">
                             @foreach (var file in selectedFiles)
                             {
-                                <div class="file-item">
+                                <div class="file-item" @onclick:stopPropagation="true">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
                                         <polyline points="13 2 13 9 20 9"></polyline>
@@ -102,10 +106,11 @@
                                     </button>
                                 </div>
                             }
+
                             <p class="add-more-link">+ Thêm file khác</p>
                         </div>
                     }
-                </div>
+                </label>
             </div>
 
             <!-- Error Message -->
@@ -184,16 +189,10 @@
 @code {
     private CreateTicketModel ticketModel = new();
     private List<IBrowserFile> selectedFiles = new();
-    private InputFile? fileInputRef;
     private bool isSubmitting = false;
     private bool isSuccess = false;
     private string? errorMessage;
 
-    private async Task TriggerFileInput()
-    {
-        // Trigger file input click via JS
-        await Task.CompletedTask;
-    }
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
     {
@@ -240,31 +239,64 @@
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             }
 
-            // Gửi request tạo ticket
-            var response = await Http.PostAsJsonAsync("api/Tickets/CreateTicket", new
-            {
-                Description = ticketModel.Description,
-                ProductName = ticketModel.ProductName,  // Có thể null
-                Priority = 1  // Medium mặc định
-            });
+            // Gửi request tạo ticket (multipart để đính kèm file)
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(ticketModel.Description ?? ""), "Description");
+            form.Add(new StringContent(ticketModel.ProductName ?? ""), "ProductName");
+            form.Add(new StringContent("2"), "Priority"); // Medium mặc định (service sẽ tự override theo sentiment)
 
-            if (response.IsSuccessStatusCode)
+            // Thêm file
+            const long maxFileSize = 10 * 1024 * 1024; // 10MB
+            var streams = new List<System.IO.Stream>();
+            try
             {
-                isSuccess = true;
-                StateHasChanged();
-                await Task.Delay(1500);
-                Navigation.NavigateTo("/customer/my-tickets");
+                foreach (var file in selectedFiles)
+                {
+                    streams.Add(file.OpenReadStream(maxFileSize));
+                }
+
+                for (var i = 0; i < selectedFiles.Count; i++)
+                {
+                    var file = selectedFiles[i];
+                    var stream = streams[i];
+                    form.Add(new StreamContent(stream), "files", file.Name);
+                }
+
+                // Timeout 60 giây để tránh request bị treo mãi
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+                Console.WriteLine($"DEBUG Frontend: Posting to api/Tickets/CreateTicketWithAttachments, files={selectedFiles.Count}");
+                var response = await Http.PostAsync("api/Tickets/CreateTicketWithAttachments", form, cts.Token);
+                Console.WriteLine($"DEBUG Frontend: Response status = {response.StatusCode}");
+
+                if (response.IsSuccessStatusCode)
+                {
+                    isSuccess = true;
+                    StateHasChanged();
+                    await Task.Delay(1500);
+                    Navigation.NavigateTo("/customer/my-tickets");
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    errorMessage = $"Lỗi {(int)response.StatusCode}: {error}";
+                    Console.WriteLine($"Error response: {error}");
+                }
             }
-            else
+            finally
             {
-                var error = await response.Content.ReadAsStringAsync();
-                errorMessage = "Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.";
-                Console.WriteLine($"Error: {error}");
+                foreach (var s in streams)
+                    s.Dispose();
             }
+        }
+        catch (System.Threading.Tasks.TaskCanceledException)
+        {
+            errorMessage = "Request bị timeout (quá 60 giây). Vui lòng thử lại hoặc chọn file nhỏ hơn.";
         }
         catch (Exception ex)
         {
             errorMessage = "Có lỗi xảy ra: " + ex.Message;
+            Console.WriteLine($"Exception in HandleSubmit: {ex}");
         }
         finally
         {

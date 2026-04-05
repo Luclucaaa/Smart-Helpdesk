@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using SmartHelpdesk.Common.Exceptions;
 using SmartHelpdesk.Data;
@@ -21,6 +21,12 @@ namespace SmartHelpdesk.Services
             _attachmentsDir = "attachments";
             _context = context;
             _mapper = mapper;
+
+            // Đảm bảo WebRootPath không null (có thể null khi wwwroot chưa tồn tại lúc khởi động)
+            if (string.IsNullOrEmpty(_env.WebRootPath))
+            {
+                _env.WebRootPath = Path.Combine(_env.ContentRootPath, "wwwroot");
+            }
         }
         public async Task<AttachmentDTO> SaveAttachment(IFormFile file, Guid commentId)
         {
@@ -29,19 +35,27 @@ namespace SmartHelpdesk.Services
                 throw new ArgumentException("File not selected");
             }
 
-            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-            var fullPath = Path.Combine(_env.WebRootPath, _attachmentsDir, fileName);
+            // Đảm bảo thư mục attachments tồn tại
+            var attachmentsFullDir = Path.Combine(_env.WebRootPath, _attachmentsDir);
+            if (!Directory.Exists(attachmentsFullDir))
+            {
+                Directory.CreateDirectory(attachmentsFullDir);
+            }
+
+            var originalFileName = file.FileName;
+            var storedFileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
+            var fullPath = Path.Combine(attachmentsFullDir, storedFileName);
 
             using (var stream = new FileStream(fullPath, FileMode.Create))
             {
                 await file.CopyToAsync(stream);
             }
 
-            var filePath = Path.Combine(_attachmentsDir, fileName);
+            var filePath = Path.Combine(_attachmentsDir, storedFileName);
 
             var attachment = new Attachment
             {
-                FileName = fileName,
+                FileName = originalFileName,   // Lưu tên gốc để hiển thị
                 Path = filePath,
                 CommentId = commentId
             };
