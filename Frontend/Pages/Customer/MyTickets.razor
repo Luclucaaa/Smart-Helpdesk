@@ -36,12 +36,12 @@
             <button class="filter-btn @(currentFilter == "in-progress" ? "active" : "")" @onclick='() => FilterByStatus("in-progress")'>
                 <span class="status-dot in-progress"></span>
                 Đang xử lý
-                <span class="badge">@tickets.Count(t => t.Status == 2)</span>
+                <span class="badge">@tickets.Count(t => t.Status == 1)</span>
             </button>
             <button class="filter-btn @(currentFilter == "resolved" ? "active" : "")" @onclick='() => FilterByStatus("resolved")'>
                 <span class="status-dot resolved"></span>
                 Đã xong
-                <span class="badge">@tickets.Count(t => t.Status == 3 || t.Status == 4)</span>
+                <span class="badge">@tickets.Count(t => t.Status == 2)</span>
             </button>
         </div>
         
@@ -93,13 +93,13 @@
                             <div class="step-dot"></div>
                             <span>Mới</span>
                         </div>
-                        <div class="progress-line @(ticket.Status >= 2 ? "completed" : "")"></div>
-                        <div class="progress-step @(ticket.Status >= 2 ? "completed" : "")">
+                        <div class="progress-line @(ticket.Status >= 1 ? "completed" : "")"></div>
+                        <div class="progress-step @(ticket.Status >= 1 ? "completed" : "")">
                             <div class="step-dot"></div>
                             <span>Đang xử lý</span>
                         </div>
-                        <div class="progress-line @(ticket.Status >= 3 ? "completed" : "")"></div>
-                        <div class="progress-step @(ticket.Status >= 3 ? "completed" : "")">
+                        <div class="progress-line @(ticket.Status >= 2 ? "completed" : "")"></div>
+                        <div class="progress-step @(ticket.Status >= 2 ? "completed" : "")">
                             <div class="step-dot"></div>
                             <span>Hoàn thành</span>
                         </div>
@@ -256,8 +256,8 @@
             result = currentFilter switch
             {
                 "new" => result.Where(t => t.Status == 0),
-                "in-progress" => result.Where(t => t.Status == 1 || t.Status == 2),
-                "resolved" => result.Where(t => t.Status == 3 || t.Status == 4),
+                "in-progress" => result.Where(t => t.Status == 1),
+                "resolved" => result.Where(t => t.Status == 2),
                 _ => result
             };
         }
@@ -288,20 +288,16 @@
     private string GetStatusClass(int status) => status switch
     {
         0 => "status-new",
-        1 => "status-open",
-        2 => "status-in-progress",
-        3 => "status-resolved",
-        4 => "status-closed",
+        1 => "status-in-progress",
+        2 => "status-closed",
         _ => "status-new"
     };
 
     private string GetStatusText(int status) => status switch
     {
         0 => "Mới",
-        1 => "Đã tiếp nhận",
-        2 => "Đang xử lý",
-        3 => "Đã giải quyết",
-        4 => "Đã đóng",
+        1 => "Đang xử lý",
+        2 => "Đã đóng",
         _ => "Mới"
     };
 

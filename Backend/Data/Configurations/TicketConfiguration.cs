@@ -19,6 +19,11 @@ namespace SmartHelpdesk.Data.Configurations
                     .IsRequired();
             builder.Property(ticket => ticket.CreatedAt)
                     .IsRequired();
+            builder.Property(ticket => ticket.IsSlaBreached)
+                    .HasDefaultValue(false);
+
+            builder.HasIndex(ticket => new { ticket.Status, ticket.ResolutionDueAt });
+
             builder.HasMany(user => user.Comments)
                  .WithOne(comment => comment.Ticket)
                  .HasForeignKey(comment => comment.TicketId)

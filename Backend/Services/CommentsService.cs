@@ -24,9 +24,43 @@ namespace SmartHelpdesk.Services
         public async Task<Guid> CreateComment(CreateCommentDTO commentDTO)
         {
             var newComment = _mapper.Map<CreateCommentDTO, Comment>(commentDTO);
-            newComment.CreatedAt = DateTimeOffset.Now;
+            newComment.CreatedAt = DateTimeOffset.UtcNow;
+
+            var ticketContext = await _context.Tickets
+                .Where(t => t.Id == commentDTO.TicketId)
+                .Select(t => new
+                {
+                    t.Id,
+                    t.UserId,
+                    t.Status,
+                    t.FirstResponseAt,
+                    t.ResolutionDueAt,
+                    t.IsSlaBreached
+                })
+                .FirstOrDefaultAsync();
+
+            if (ticketContext == null)
+            {
+                throw new NotFoundException();
+            }
 
             _context.Comments.Add(newComment);
+
+            var shouldSetFirstResponse = ticketContext.FirstResponseAt == null && ticketContext.UserId != commentDTO.UserId;
+            if (shouldSetFirstResponse)
+            {
+                var now = DateTimeOffset.UtcNow;
+                var isSlaBreached = ticketContext.ResolutionDueAt.HasValue && now > ticketContext.ResolutionDueAt.Value;
+
+                await _context.Tickets
+                    .Where(t => t.Id == ticketContext.Id)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(t => t.FirstResponseAt, now)
+                        .SetProperty(t => t.Status, ticketContext.Status == Status.Open ? Status.InProgress : ticketContext.Status)
+                        .SetProperty(t => t.IsSlaBreached, ticketContext.IsSlaBreached || isSlaBreached)
+                        .SetProperty(t => t.UpdatedAt, now));
+            }
+
             await _context.SaveChangesAsync();
 
             return newComment.Id;

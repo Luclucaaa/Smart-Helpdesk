@@ -4,6 +4,8 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @using System.Net.Http.Json
+@using System.Text.Json
+@implements IDisposable
 
 <PageTitle>Chi tiết yêu cầu hỗ trợ - Agent Dashboard</PageTitle>
 
@@ -216,32 +218,135 @@
                     <div class="status-buttons">
                         <button class="status-btn @(ticket.Status == 0 ? "active" : "")" 
                                 @onclick='() => UpdateStatus(0)'
-                                disabled="@(ticket.Status == 0)">
+                                disabled="@(!CanUpdateToStatus(0))">
                             <span class="dot new"></span>
                             Mới
                         </button>
                         <button class="status-btn @(ticket.Status == 1 ? "active" : "")" 
                                 @onclick='() => UpdateStatus(1)'
-                                disabled="@(ticket.Status == 1)">
+                                disabled="@(!CanUpdateToStatus(1))">
                             <span class="dot in-progress"></span>
                             Đang xử lý
                         </button>
                         <button class="status-btn @(ticket.Status == 2 ? "active" : "")" 
                                 @onclick='() => UpdateStatus(2)'
-                                disabled="@(ticket.Status == 2)">
+                                disabled="@(!CanUpdateToStatus(2))">
                             <span class="dot closed"></span>
                             Đã đóng
                         </button>
                     </div>
                 </div>
 
+                <!-- Assignee Card -->
+                <div class="action-card">
+                    <h4>Phụ trách</h4>
+                    @if (ticket.AssignedToId.HasValue)
+                    {
+                        <div class="assignee-display">
+                            <div class="assignee-avatar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                            </div>
+                            <div class="assignee-info">
+                                <span class="assignee-name">@ticket.AssignedToName</span>
+                                <span class="assignee-label">Nhân viên phụ trách</span>
+                            </div>
+                        </div>
+                        @if (ticket.AssignedToId == currentUserId && ticket.Status != 2)
+                        {
+                            <div class="my-ticket-badge">
+                                ✅ Đây là ticket của bạn
+                            </div>
+                        }
+                    }
+                    else if (ticket.Status != 2)
+                    {
+                        <div class="unassigned-display">
+                            <p class="unassigned-hint">Ticket này chưa có người nhận</p>
+                            <button class="btn-self-assign-detail" @onclick="SelfAssignTicket" disabled="@isSelfAssigning">
+                                @if (isSelfAssigning)
+                                {
+                                    <span class="spinner-small"></span>
+                                    <span>Đang xử lý...</span>
+                                }
+                                else
+                                {
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="12" cy="7" r="4"></circle>
+                                    </svg>
+                                    <span>Tự nhận ticket này</span>
+                                }
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="unassigned-hint">Ticket đã đóng</p>
+                    }
+                </div>
+
                 <!-- Quick Actions Card -->
                 <div class="action-card">
                     <h4>Thao tác nhanh</h4>
                     <div class="quick-actions">
+                        @if (ticket.Status != 2 && !ticket.AssignedToId.HasValue)
+                        {
+                            <button class="quick-btn primary" @onclick="SelfAssignTicket" disabled="@isSelfAssigning">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                                Nhận ticket này
+                            </button>
+                        }
+
+                        @if (ticket.Status != 2 && IsMyTicket && ticket.Status != 1)
+                        {
+                            <button class="quick-btn warning" @onclick="StartProcessingTicket" disabled="@isUpdatingStatus">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 16 14"></polyline>
+                                </svg>
+                                Chuyển sang Đang xử lý
+                            </button>
+                        }
+
+                        @if (ticket.Status != 2 && IsMyTicket)
+                        {
+                            <button class="quick-btn success" @onclick="CloseTicketQuickly" disabled="@isUpdatingStatus">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                Đánh dấu đã đóng
+                            </button>
+                        }
+
+                        @if (ticket.Status == 2 && IsMyTicket)
+                        {
+                            <button class="quick-btn neutral" @onclick="ReopenTicket" disabled="@isUpdatingStatus">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="23 4 23 10 17 10"></polyline>
+                                    <polyline points="1 20 1 14 7 14"></polyline>
+                                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                                </svg>
+                                Mở lại ticket
+                            </button>
+                        }
+
+                        <button class="quick-btn neutral" @onclick='() => UseCannedResponse("Chúng tôi cần thêm thông tin để hỗ trợ bạn tốt hơn. Bạn có thể mô tả chi tiết hơn các bước gây ra vấn đề không?")'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 3-3 3"></path>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                            Yêu cầu thêm thông tin
+                        </button>
+
                         @if (ticket.Category == 0)
                         {
-                            <button class="quick-btn bug">
+                            <button class="quick-btn bug" @onclick='() => ShowActionNotification("🐛 Đã chuẩn bị nội dung chuyển lỗi cho team Dev. Bạn có thể gửi tiếp qua JIRA/nhóm kỹ thuật.", true)'>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
@@ -251,7 +356,7 @@
                         }
                         @if (ticket.Category == 3)
                         {
-                            <button class="quick-btn sale">
+                            <button class="quick-btn sale" @onclick='() => ShowActionNotification("💼 Đã ghi nhận thao tác chuyển Sale Team. Vui lòng gắn tag sale trong quy trình nội bộ.", true)'>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                     <circle cx="9" cy="7" r="4"></circle>
@@ -263,7 +368,7 @@
                         }
                         @if (ticket.Category == 2)
                         {
-                            <button class="quick-btn support">
+                            <button class="quick-btn support" @onclick='() => UseCannedResponse("Mình đã chuẩn bị hướng dẫn sử dụng phù hợp. Bạn vui lòng làm theo từng bước và phản hồi kết quả nhé.")'>
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
                                     <polyline points="14 2 14 8 20 8"></polyline>
@@ -280,21 +385,35 @@
                 <div class="action-card">
                     <h4>Trả lời mẫu</h4>
                     <div class="canned-responses">
-                        <button class="canned-btn" @onclick='() => UseCannedResponse("Cảm ơn bạn đã liên hệ! Chúng tôi đã nhận được yêu cầu và sẽ xử lý trong thời gian sớm nhất.")'>
-                            👋 Chào mừng & tiếp nhận
-                        </button>
-                        <button class="canned-btn" @onclick='() => UseCannedResponse("Vấn đề của bạn đã được xử lý xong. Vui lòng kiểm tra và phản hồi nếu còn thắc mắc.")'>
-                            ✅ Đã giải quyết xong
-                        </button>
-                        <button class="canned-btn" @onclick='() => UseCannedResponse("Chúng tôi cần thêm thông tin để hỗ trợ bạn tốt hơn. Bạn có thể cung cấp thêm chi tiết về vấn đề không?")'>
-                            ❓ Yêu cầu thêm thông tin
-                        </button>
-                        <button class="canned-btn" @onclick='() => UseCannedResponse("Chân thành xin lỗi về sự bất tiện này. Chúng tôi đang khẩn trương khắc phục và sẽ thông báo ngay khi hoàn tất.")'>
-                            🙏 Xin lỗi & đang xử lý
-                        </button>
+                        @if (isLoadingCanned)
+                        {
+                            <div class="canned-loading">Đang tải mẫu phản hồi...</div>
+                        }
+                        else if (cannedResponses.Count == 0)
+                        {
+                            <div class="canned-loading">Chưa có mẫu phản hồi phù hợp.</div>
+                        }
+                        else
+                        {
+                            @foreach (var canned in cannedResponses.Take(6))
+                            {
+                                <button class="canned-btn" title="@canned.Text" @onclick='() => UseCannedResponse(canned.Text)'>
+                                    @canned.Title
+                                </button>
+                            }
+                        }
                     </div>
                 </div>
             </div>
+        </div>
+    }
+
+    <!-- Smart Action Toast Notification -->
+    @if (showActionToast)
+    {
+        <div class="action-toast @(actionToastSuccess ? "success" : "info")">
+            <span>@actionToastMessage</span>
+            <button class="toast-close" @onclick="() => showActionToast = false">✕</button>
         </div>
     }
 </div>
@@ -309,11 +428,62 @@
     private bool isLoading = true;
     private bool isSending = false;
     private bool isUpdatingStatus = false;
+    private bool isSelfAssigning = false;
+    private bool showActionToast = false;
+    private string actionToastMessage = "";
+    private bool actionToastSuccess = true;
+    private Guid? currentUserId = null;
+    private bool isLoadingCanned = false;
+    private List<CannedResponseOption> cannedResponses = new();
+    private CancellationTokenSource? commentsPollingCts;
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     protected override async Task OnParametersSetAsync()
     {
         if (Id != Guid.Empty)
+        {
+            StopCommentsPolling();
+            await LoadCurrentUser();
             await LoadTicketDetail();
+            await LoadCannedResponses();
+            StartCommentsPolling();
+        }
+    }
+
+    private bool IsMyTicket =>
+        ticket != null && currentUserId.HasValue && ticket.AssignedToId == currentUserId;
+
+    private bool CanUpdateToStatus(int targetStatus)
+    {
+        if (ticket == null || isUpdatingStatus)
+            return false;
+
+        if (!IsMyTicket)
+            return false;
+
+        return ticket.Status != targetStatus;
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Users/me");
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var user = JsonSerializer.Deserialize<UserMeDto>(content, JsonOptions);
+                currentUserId = user?.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading current user: {ex.Message}");
+        }
     }
 
     private async Task LoadTicketDetail()
@@ -351,7 +521,9 @@
                         UserEmail = ticketResponse.UserEmail,
                         ProductName = ticketResponse.ProductName,
                         CreatedAt = ticketResponse.CreatedAt,
-                        Attachments = ticketResponse.Attachments
+                        Attachments = ticketResponse.Attachments,
+                        AssignedToId = ticketResponse.AssignedToId,
+                        AssignedToName = ticketResponse.AssignedToName
                     };
                     
                     if (ticketResponse.Comments != null)
@@ -384,9 +556,109 @@
         }
     }
 
+    private async Task LoadCannedResponses()
+    {
+        if (ticket == null)
+            return;
+
+        isLoadingCanned = true;
+        try
+        {
+            HttpResponseMessage response;
+            if (ticket.Category.HasValue)
+            {
+                var apiCategory = ticket.Category.Value switch
+                {
+                    0 => "Bug",
+                    1 => "Feature",
+                    2 => "Support",
+                    3 => "Sale",
+                    _ => ""
+                };
+
+                response = string.IsNullOrWhiteSpace(apiCategory)
+                    ? await Http.GetAsync("api/CannedResponses")
+                    : await Http.GetAsync($"api/CannedResponses/by-category/{apiCategory}");
+            }
+            else
+            {
+                response = await Http.GetAsync("api/CannedResponses");
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var fromApi = JsonSerializer.Deserialize<List<CannedResponseOption>>(content, JsonOptions) ?? new List<CannedResponseOption>();
+                cannedResponses = fromApi
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Title) && !string.IsNullOrWhiteSpace(x.Text))
+                    .ToList();
+            }
+
+            if (cannedResponses.Count == 0)
+            {
+                cannedResponses = BuildDefaultCannedResponses(ticket.Category);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading canned responses: {ex.Message}");
+            cannedResponses = BuildDefaultCannedResponses(ticket.Category);
+        }
+        finally
+        {
+            isLoadingCanned = false;
+        }
+    }
+
+    private static List<CannedResponseOption> BuildDefaultCannedResponses(int? category)
+    {
+        var defaults = new List<CannedResponseOption>
+        {
+            new() { Title = "👋 Chào mừng & tiếp nhận", Text = "Cảm ơn bạn đã liên hệ! Chúng tôi đã nhận được yêu cầu và sẽ xử lý trong thời gian sớm nhất." },
+            new() { Title = "❓ Yêu cầu thêm thông tin", Text = "Chúng tôi cần thêm thông tin để hỗ trợ bạn tốt hơn. Bạn có thể cung cấp thêm chi tiết về vấn đề không?" },
+            new() { Title = "🙏 Xin lỗi & đang xử lý", Text = "Chân thành xin lỗi về sự bất tiện này. Chúng tôi đang khẩn trương khắc phục và sẽ thông báo ngay khi hoàn tất." },
+            new() { Title = "✅ Đã giải quyết xong", Text = "Vấn đề của bạn đã được xử lý xong. Vui lòng kiểm tra và phản hồi nếu còn thắc mắc." }
+        };
+
+        if (category == 0)
+        {
+            defaults.Insert(0, new CannedResponseOption
+            {
+                Title = "🐛 Đã chuyển team kỹ thuật",
+                Text = "Mình đã ghi nhận lỗi và chuyển cho team kỹ thuật kiểm tra. Mình sẽ cập nhật ngay khi có kết quả."
+            });
+        }
+
+        if (category == 2)
+        {
+            defaults.Insert(0, new CannedResponseOption
+            {
+                Title = "📄 Hướng dẫn sử dụng",
+                Text = "Mình gửi bạn hướng dẫn sử dụng chi tiết. Bạn vui lòng thử theo từng bước và phản hồi giúp mình nhé."
+            });
+        }
+
+        if (category == 3)
+        {
+            defaults.Insert(0, new CannedResponseOption
+            {
+                Title = "💼 Chuyển Sale Team",
+                Text = "Yêu cầu tư vấn của bạn đã được chuyển đến bộ phận kinh doanh để hỗ trợ nhanh nhất."
+            });
+        }
+
+        return defaults;
+    }
+
     private async Task SendComment()
     {
         if (string.IsNullOrWhiteSpace(newComment) || ticket == null) return;
+
+        if (!currentUserId.HasValue)
+        {
+            await ShowActionNotification("❌ Không xác định được người dùng hiện tại. Vui lòng đăng nhập lại.", false);
+            return;
+        }
         
         isSending = true;
         try
@@ -395,6 +667,7 @@
             var response = await Http.PostAsJsonAsync("api/Tickets/Comments/AddCommentToTicket", new 
             { 
                 TicketId = Id, 
+                UserId = currentUserId.Value,
                 Text = newComment 
             });
             
@@ -403,11 +676,18 @@
                 // Reload comments sau khi thêm thành công
                 await LoadTicketDetail();
                 newComment = "";
+                await ShowActionNotification("✅ Đã gửi phản hồi cho khách hàng.", true);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await ShowActionNotification(string.IsNullOrWhiteSpace(error) ? "❌ Gửi phản hồi thất bại." : $"❌ {error}", false);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error sending comment: {ex.Message}");
+            await ShowActionNotification("❌ Có lỗi khi gửi phản hồi.", false);
         }
         finally
         {
@@ -415,9 +695,108 @@
         }
     }
 
+    private void StartCommentsPolling()
+    {
+        commentsPollingCts = new CancellationTokenSource();
+        _ = PollCommentsAsync(commentsPollingCts.Token);
+    }
+
+    private void StopCommentsPolling()
+    {
+        commentsPollingCts?.Cancel();
+        commentsPollingCts?.Dispose();
+        commentsPollingCts = null;
+    }
+
+    private async Task PollCommentsAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(4));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (!isLoading && !isSending && ticket != null)
+                    {
+                        await LoadCommentsOnly();
+                    }
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when navigating away.
+        }
+    }
+
+    private async Task LoadCommentsOnly()
+    {
+        try
+        {
+            var response = await Http.GetAsync($"api/Tickets/Comments/GetCommentsToTicket/{Id}");
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var latest = JsonSerializer.Deserialize<List<CommentResponse>>(content, JsonOptions) ?? new List<CommentResponse>();
+
+            var mapped = latest.Select(c => new CommentDto
+            {
+                Id = c.Id,
+                Content = c.Text,
+                IsFromAgent = c.IsFromAgent,
+                SenderName = c.UserName,
+                CreatedAt = c.CreatedAt
+            }).ToList();
+
+            if (!AreCommentsEqual(comments, mapped))
+            {
+                comments = mapped;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // Keep screen stable when polling fails intermittently.
+        }
+    }
+
+    private static bool AreCommentsEqual(List<CommentDto> current, List<CommentDto> incoming)
+    {
+        if (current.Count != incoming.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < current.Count; i++)
+        {
+            if (current[i].Id != incoming[i].Id)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public void Dispose()
+    {
+        StopCommentsPolling();
+    }
+
     private async Task UpdateStatus(int newStatus)
     {
         if (ticket == null) return;
+
+        if (!IsMyTicket)
+        {
+            await ShowActionNotification("❌ Bạn chỉ có thể đổi trạng thái ticket do chính bạn phụ trách.", false);
+            return;
+        }
         
         isUpdatingStatus = true;
         try
@@ -431,16 +810,103 @@
             if (response.IsSuccessStatusCode)
             {
                 ticket.Status = newStatus;
+                await ShowActionNotification("✅ Đã cập nhật trạng thái ticket.", true);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await ShowActionNotification(string.IsNullOrWhiteSpace(error) ? "❌ Cập nhật trạng thái thất bại." : $"❌ {error}", false);
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error updating status: {ex.Message}");
+            await ShowActionNotification("❌ Có lỗi khi cập nhật trạng thái.", false);
         }
         finally
         {
             isUpdatingStatus = false;
         }
+    }
+
+    private async Task SelfAssignTicket()
+    {
+        if (ticket == null) return;
+        isSelfAssigning = true;
+        try
+        {
+            var response = await Http.PostAsync($"api/Tickets/SelfAssign/{Id}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                // Reload ticket to get updated assignee info
+                await LoadTicketDetail();
+                await ShowActionNotification("✅ Bạn đã nhận ticket này thành công!", true);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                var message = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? "❌ Ticket này đã có nhân viên khác nhận. Vui lòng tải lại danh sách."
+                    : string.IsNullOrWhiteSpace(error)
+                        ? "❌ Không thể nhận ticket. Vui lòng thử lại."
+                        : $"❌ {error}";
+
+                    await ShowActionNotification(message, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error self-assigning: {ex.Message}");
+                await ShowActionNotification("❌ Có lỗi khi nhận ticket.", false);
+        }
+        finally
+        {
+            isSelfAssigning = false;
+        }
+    }
+
+        private async Task StartProcessingTicket()
+        {
+            if (ticket == null) return;
+
+            if (!ticket.AssignedToId.HasValue)
+            {
+                await SelfAssignTicket();
+            }
+
+            if (ticket.Status != 1)
+            {
+                await UpdateStatus(1);
+            }
+        }
+
+        private async Task CloseTicketQuickly()
+        {
+            if (ticket == null || !IsMyTicket) return;
+
+            if (string.IsNullOrWhiteSpace(newComment))
+            {
+                newComment = "Vấn đề của bạn đã được xử lý xong. Vui lòng kiểm tra và phản hồi nếu còn cần hỗ trợ thêm.";
+            }
+
+            await UpdateStatus(2);
+        }
+
+        private async Task ReopenTicket()
+        {
+            if (ticket == null || !IsMyTicket) return;
+            await UpdateStatus(1);
+        }
+
+        private async Task ShowActionNotification(string message, bool success)
+    {
+        actionToastMessage = message;
+        actionToastSuccess = success;
+        showActionToast = true;
+        StateHasChanged();
+        await Task.Delay(4000);
+        showActionToast = false;
+        StateHasChanged();
     }
 
     private void UseCannedResponse(string response)
@@ -512,6 +978,15 @@
         public string ProductName { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; }
         public List<AttachmentDto>? Attachments { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+    }
+
+    public class UserMeDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
     }
 
     public class AttachmentDto
@@ -547,6 +1022,7 @@
         public string UserEmail { get; set; } = string.Empty;
         public string? AssignedToName { get; set; }
         public string? AssignedToEmail { get; set; }
+        public Guid? AssignedToId { get; set; }
         public Guid? ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public List<AttachmentDto>? Attachments { get; set; }
@@ -562,5 +1038,13 @@
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
         public bool IsFromAgent { get; set; }
+    }
+
+    public class CannedResponseOption
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+        public int? Category { get; set; }
     }
 }

@@ -234,6 +234,63 @@
                     </div>
                 </div>
 
+                <!-- Assign Agent Card (Admin Only) -->
+                <div class="action-card assign-card">
+                    <h4>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Phân công nhân viên
+                    </h4>
+
+                    @if (ticket.AssignedToId.HasValue)
+                    {
+                        <div class="current-assignee">
+                            <div class="assignee-avatar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <div class="assignee-name">@ticket.AssignedToName</div>
+                                <div class="assignee-label">Nhân viên phụ trách</div>
+                            </div>
+                        </div>
+                        <button class="btn-unassign" @onclick="UnassignTicket" disabled="@isAssigning">
+                            Hủy phân công
+                        </button>
+                    }
+
+                    <div class="assign-select-group">
+                        <label>Chọn nhân viên mới:</label>
+                        <select class="agent-select" @bind="selectedAgentId">
+                            <option value="">-- Chọn nhân viên --</option>
+                            @foreach (var agent in availableAgents)
+                            {
+                                <option value="@agent.Id">@agent.Name @agent.Surname - (@agent.AssignedCount ticket)</option>
+                            }
+                        </select>
+                        <button class="btn-assign" @onclick="AssignAgent"
+                                disabled="@(string.IsNullOrEmpty(selectedAgentId) || isAssigning)">
+                            @if (isAssigning)
+                            {
+                                <span class="spinner-small"></span>
+                                <span>Đang phân công...</span>
+                            }
+                            else
+                            {
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                                <span>Phân công</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Canned Responses Card -->
                 <div class="action-card">
                     <h4>Trả lời mẫu</h4>
@@ -255,6 +312,15 @@
             </div>
         </div>
     }
+
+    <!-- Assignment Toast -->
+    @if (showAssignToast)
+    {
+        <div class="action-toast @(assignSuccess ? "success" : "error")">
+            <span>@assignMessage</span>
+            <button class="toast-close" @onclick="() => showAssignToast = false">✕</button>
+        </div>
+    }
 </div>
 
 @code {
@@ -263,14 +329,132 @@
     
     private AdminTicketDetailDto? ticket;
     private List<CommentDto> comments = new();
+    private List<AgentListItemDto> availableAgents = new();
     private string newComment = "";
+    private string selectedAgentId = "";
     private bool isLoading = true;
     private bool isSending = false;
+    private bool isAssigning = false;
+    private bool showAssignToast = false;
+    private string assignMessage = "";
+    private bool assignSuccess = true;
 
     protected override async Task OnParametersSetAsync()
     {
         if (Id != Guid.Empty)
+        {
             await LoadTicketDetail();
+            await LoadAgents();
+        }
+    }
+
+    private async Task LoadAgents()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Users/agents");
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var agents = System.Text.Json.JsonSerializer.Deserialize<List<AgentListItemDto>>(content, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (agents != null)
+                {
+                    // Count assigned tickets for each agent
+                    var allTicketsResponse = await Http.GetAsync("api/Tickets/GetAllTickets?Take=1000&Skip=0");
+                    Dictionary<Guid, int> assignedCounts = new();
+                    if (allTicketsResponse.IsSuccessStatusCode)
+                    {
+                        var ticketsContent = await allTicketsResponse.Content.ReadAsStringAsync();
+                        var ticketsData = System.Text.Json.JsonSerializer.Deserialize<RawTicketsWrapper>(ticketsContent, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (ticketsData?.Tickets != null)
+                        {
+                            foreach (var t in ticketsData.Tickets.Where(t => t.AssignedToId.HasValue))
+                            {
+                                var aid = t.AssignedToId!.Value;
+                                assignedCounts[aid] = assignedCounts.TryGetValue(aid, out int c) ? c + 1 : 1;
+                            }
+                        }
+                    }
+                    availableAgents = agents.Select(a => new AgentListItemDto
+                    {
+                        Id = a.Id, Name = a.Name, Surname = a.Surname, Email = a.Email,
+                        AssignedCount = assignedCounts.TryGetValue(a.Id, out int cnt) ? cnt : 0
+                    }).ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading agents: {ex.Message}");
+        }
+    }
+
+    private async Task AssignAgent()
+    {
+        if (string.IsNullOrEmpty(selectedAgentId) || ticket == null) return;
+        isAssigning = true;
+        try
+        {
+            if (!Guid.TryParse(selectedAgentId, out Guid agentId)) return;
+            var response = await Http.PostAsJsonAsync($"api/Tickets/AssignTicket/{Id}", new { AgentId = agentId });
+            if (response.IsSuccessStatusCode)
+            {
+                var agent = availableAgents.FirstOrDefault(a => a.Id == agentId);
+                ticket.AssignedToId = agentId;
+                ticket.AssignedToName = agent != null ? $"{agent.Name} {agent.Surname}" : selectedAgentId;
+                assignMessage = $"✅ Đã phân công ticket cho {ticket.AssignedToName}";
+                assignSuccess = true;
+                selectedAgentId = "";
+                await LoadAgents();
+            }
+            else
+            {
+                assignMessage = "❌ Không thể phân công. Vui lòng thử lại.";
+                assignSuccess = false;
+            }
+            showAssignToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            showAssignToast = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error assigning: {ex.Message}");
+        }
+        finally { isAssigning = false; }
+    }
+
+    private async Task UnassignTicket()
+    {
+        if (ticket == null) return;
+        isAssigning = true;
+        try
+        {
+            var response = await Http.PostAsJsonAsync($"api/Tickets/AssignTicket/{Id}", new { AgentId = (Guid?)null });
+            if (response.IsSuccessStatusCode)
+            {
+                ticket.AssignedToId = null;
+                ticket.AssignedToName = null;
+                assignMessage = "✅ Đã hủy phân công thành công";
+                assignSuccess = true;
+            }
+            else
+            {
+                assignMessage = "❌ Không thể hủy phân công.";
+                assignSuccess = false;
+            }
+            showAssignToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            showAssignToast = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error unassigning: {ex.Message}");
+        }
+        finally { isAssigning = false; }
     }
 
     private async Task LoadTicketDetail()
@@ -309,7 +493,9 @@
                         UserEmail = ticketResponse.UserEmail,
                         ProductName = ticketResponse.ProductName,
                         CreatedAt = ticketResponse.CreatedAt,
-                        Attachments = ticketResponse.Attachments
+                        Attachments = ticketResponse.Attachments,
+                        AssignedToId = ticketResponse.AssignedToId,
+                        AssignedToName = ticketResponse.AssignedToName
                     };
                     
                     if (ticketResponse.Comments != null)
@@ -463,6 +649,28 @@
         public string ProductName { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; }
         public List<AttachmentDto>? Attachments { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+    }
+
+    public class AgentListItemDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Surname { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public int AssignedCount { get; set; }
+    }
+
+    public class RawTicketsWrapper
+    {
+        public List<RawTicketMin> Tickets { get; set; } = new();
+    }
+
+    public class RawTicketMin
+    {
+        public Guid Id { get; set; }
+        public Guid? AssignedToId { get; set; }
     }
 
     public class AttachmentDto
@@ -497,6 +705,7 @@
         public string UserName { get; set; } = string.Empty;
         public string UserEmail { get; set; } = string.Empty;
         public string? AssignedToName { get; set; }
+        public Guid? AssignedToId { get; set; }
         public Guid? ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public List<AttachmentDto>? Attachments { get; set; }

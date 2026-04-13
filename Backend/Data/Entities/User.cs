@@ -9,5 +9,8 @@ namespace SmartHelpdesk.Data.Entities
         public List<Ticket> CreatedTickets { get; set; } = new List<Ticket>();
         public List<Ticket> AssignedTickets { get; set; } = new List<Ticket>();
         public List<Comment> Comments { get; set; } = new List<Comment>();
+        public List<ProductAgentAssignment> ProductAssignments { get; set; } = new List<ProductAgentAssignment>();
+        public List<TicketFeedback> TicketFeedbacks { get; set; } = new List<TicketFeedback>();
+        public List<UserNotification> Notifications { get; set; } = new List<UserNotification>();
     }
 }

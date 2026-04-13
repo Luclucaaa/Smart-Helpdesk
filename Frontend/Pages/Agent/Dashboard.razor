@@ -54,6 +54,25 @@
         </div>
     </div>
 
+    <!-- Queue Tabs -->
+    <div class="queue-tabs">
+        <button class="queue-tab @(activeTab == "all" ? "active" : "")" @onclick='() => SetTab("all")'>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+            Tất cả
+            <span class="tab-count">@allTickets.Count</span>
+        </button>
+        <button class="queue-tab @(activeTab == "mine" ? "active" : "")" @onclick='() => SetTab("mine")'>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Của tôi
+            <span class="tab-count mine">@allTickets.Count(t => t.AssignedToId == currentUserId)</span>
+        </button>
+        <button class="queue-tab @(activeTab == "unassigned" ? "active" : "")" @onclick='() => SetTab("unassigned")'>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Chưa phân công
+            <span class="tab-count unassigned">@allTickets.Count(t => t.AssignedToId == null)</span>
+        </button>
+    </div>
+
     <!-- Filters Bar -->
     <div class="filters-section">
         <div class="filters-row">
@@ -80,9 +99,9 @@
                 <label>Độ ưu tiên</label>
                 <select @bind="filterPriority" @bind:after="ApplyFilters">
                     <option value="">Tất cả</option>
-                    <option value="2">Cao</option>
-                    <option value="1">Trung bình</option>
-                    <option value="0">Thấp</option>
+                    <option value="3">Cao</option>
+                    <option value="2">Trung bình</option>
+                    <option value="1">Thấp</option>
                 </select>
             </div>
             <div class="filter-group">
@@ -148,6 +167,7 @@
                         <th>Phân loại</th>
                         <th>Ưu tiên</th>
                         <th>Trạng thái</th>
+                        <th>Phụ trách</th>
                         <th>Thời gian</th>
                         <th>Thao tác</th>
                     </tr>
@@ -155,17 +175,21 @@
                 <tbody>
                     @foreach (var ticket in filteredTickets)
                     {
-                        <tr class="@(ticket.Priority == 2 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
+                        <tr class="@(ticket.Priority == 3 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
                             <td class="ticket-id">
-                                <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
-                                @if (ticket.SentimentScore < 0.4)
-                                {
-                                    <span class="sentiment-warning" title="Khách hàng có thể đang không hài lòng">🔥</span>
-                                }
+                                <div class="ticket-id-content">
+                                    <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                    @if (ticket.SentimentScore < 0.4)
+                                    {
+                                        <span class="sentiment-warning" title="Khách hàng có thể đang không hài lòng">🔥</span>
+                                    }
+                                </div>
                             </td>
                             <td class="customer-info">
-                                <span class="customer-name">@ticket.UserName</span>
-                                <span class="customer-email">@ticket.UserEmail</span>
+                                <div class="customer-info-content">
+                                    <span class="customer-name">@ticket.UserName</span>
+                                    <span class="customer-email">@ticket.UserEmail</span>
+                                </div>
                             </td>
                             <td class="ticket-desc">
                                 <span class="desc-text">@TruncateText(ticket.Description, 60)</span>
@@ -181,6 +205,25 @@
                             </td>
                             <td>
                                 <span class="status-tag @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                            </td>
+                            <td class="assignee-info">
+                                @if (ticket.AssignedToId.HasValue)
+                                {
+                                    <span class="assignee-tag">@(ticket.AssignedToName ?? "Đã gán")</span>
+                                }
+                                else
+                                {
+                                    @if (ticket.Status != 2)
+                                    {
+                                        <button class="btn-self-assign" @onclick="() => SelfAssign(ticket.Id)" title="Tự nhận ticket này">
+                                            + Nhận
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="unassigned-tag">—</span>
+                                    }
+                                }
                             </td>
                             <td class="time-info">
                                 <span class="created-time">@GetTimeAgo(ticket.CreatedAt)</span>
@@ -225,6 +268,10 @@
     private List<ProductDto> products = new();
     private bool isLoading = true;
     private string errorMessage = "";
+    private string activeTab = "all"; // "all" | "mine" | "unassigned"
+    private Guid? currentUserId = null;
+    private string assignMessage = "";
+    private bool showAssignToast = false;
     
     // Filters
     private string filterStatus = "";
@@ -240,14 +287,72 @@
     private int totalPages => (int)Math.Ceiling((double)totalTickets / pageSize);
     
     // Stats
-    private int urgentCount => allTickets.Count(t => t.Priority == 2 && t.Status != 2);
+    private int urgentCount => allTickets.Count(t => t.Priority == 3 && t.Status != 2);
     private int pendingCount => allTickets.Count(t => t.Status == 0);
     private int inProgressCount => allTickets.Count(t => t.Status == 1);
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCurrentUser();
         await LoadProducts();
         await LoadTickets();
+    }
+
+    private async Task LoadCurrentUser()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Users/me");
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync();
+                var user = JsonSerializer.Deserialize<UserMeDto>(content, JsonOptions);
+                currentUserId = user?.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading current user: {ex.Message}");
+        }
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        currentPage = 1;
+        ApplyFilters();
+    }
+
+    private async Task SelfAssign(Guid ticketId)
+    {
+        try
+        {
+            var response = await Http.PostAsync($"api/Tickets/SelfAssign/{ticketId}", null);
+            if (response.IsSuccessStatusCode)
+            {
+                assignMessage = "✅ Đã nhận ticket thành công!";
+                await LoadTickets();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                assignMessage = response.StatusCode == System.Net.HttpStatusCode.Conflict
+                    ? "❌ Ticket này đã được nhân viên khác nhận trước đó."
+                    : string.IsNullOrWhiteSpace(error)
+                        ? "❌ Không thể nhận ticket. Vui lòng thử lại."
+                        : $"❌ {error}";
+            }
+
+            showAssignToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            showAssignToast = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error self-assigning: {ex.Message}");
+        }
     }
 
     private async Task LoadProducts()
@@ -272,16 +377,18 @@
         errorMessage = "";
         try
         {
-            Console.WriteLine("Calling API: api/Tickets/GetAllTickets");
-            
-            // Sử dụng GetAllTickets để lấy toàn bộ ticket (không filter theo userId)
-            var httpResponse = await Http.GetAsync("api/Tickets/GetAllTickets?Take=1000&Skip=0");
-            
-            Console.WriteLine($"Response Status: {httpResponse.StatusCode}");
-            
-            if (!httpResponse.IsSuccessStatusCode)
+            Console.WriteLine("Calling API: MyAssignedTickets + UnassignedTickets");
+
+            var myAssignedTask = Http.GetAsync("api/Tickets/MyAssignedTickets?Take=1000&Skip=0");
+            var unassignedTask = Http.GetAsync("api/Tickets/UnassignedTickets?Take=1000&Skip=0");
+            await Task.WhenAll(myAssignedTask, unassignedTask);
+
+            var myAssignedResponse = myAssignedTask.Result;
+            var unassignedResponse = unassignedTask.Result;
+
+            if (!myAssignedResponse.IsSuccessStatusCode || !unassignedResponse.IsSuccessStatusCode)
             {
-                var statusCode = (int)httpResponse.StatusCode;
+                var statusCode = (int)(!myAssignedResponse.IsSuccessStatusCode ? myAssignedResponse.StatusCode : unassignedResponse.StatusCode);
                 Console.WriteLine($"API Error: {statusCode}");
                 
                 if (statusCode == 401)
@@ -302,38 +409,53 @@
                 allTickets = new List<AgentTicketDto>();
                 return;
             }
-            
-            // Đọc raw string và deserialize thủ công giống Admin
-            var content = await httpResponse.Content.ReadAsStringAsync();
-            Console.WriteLine($"Response Body (first 500 chars): {(content?.Length > 500 ? content.Substring(0, 500) : content)}");
-            
-            var response = JsonSerializer.Deserialize<RawTicketsResponse>(content, JsonOptions);
-            Console.WriteLine($"Deserialized: Total={response?.Total}, Tickets count={response?.Tickets?.Count ?? 0}");
-            
-            if (response?.Tickets != null)
+
+            var myAssignedContent = await myAssignedResponse.Content.ReadAsStringAsync();
+            var unassignedContent = await unassignedResponse.Content.ReadAsStringAsync();
+
+            var myAssignedData = JsonSerializer.Deserialize<AgentQueueResponse>(myAssignedContent, JsonOptions);
+            var unassignedData = JsonSerializer.Deserialize<AgentQueueResponse>(unassignedContent, JsonOptions);
+
+            var mergedTickets = new List<AgentQueueTicketDTO>();
+            if (myAssignedData?.Tickets != null)
             {
-                allTickets = response.Tickets.Select(t => new AgentTicketDto
+                mergedTickets.AddRange(myAssignedData.Tickets);
+            }
+            if (unassignedData?.Tickets != null)
+            {
+                mergedTickets.AddRange(unassignedData.Tickets);
+            }
+
+            allTickets = mergedTickets
+                .GroupBy(t => t.Id)
+                .Select(g => g.First())
+                .Select(t => new AgentTicketDto
                 {
                     Id = t.Id,
                     Title = t.Title ?? "",
-                    Description = t.Description ?? "",
+                    Description = t.Title ?? "",
                     Priority = t.Priority,
                     Status = t.Status,
                     Category = t.Category,
                     SentimentScore = t.SentimentScore,
-                    UserName = t.UserName ?? "Không rõ",
-                    UserEmail = t.UserEmail ?? "",
+                    UserName = t.CustomerName ?? "Không rõ",
+                    UserEmail = t.CustomerEmail ?? "",
                     ProductName = t.ProductName ?? "Chưa phân loại",
-                    CreatedAt = t.CreatedAt
-                }).ToList();
-                
-                Console.WriteLine($"Loaded {allTickets.Count} tickets");
-            }
-            else
+                    CreatedAt = t.CreatedAt,
+                    AssignedToId = t.AssignedToId,
+                    AssignedToName = t.AssignedToName
+                })
+                .ToList();
+
+            // Safety net: chỉ giữ ticket được gán cho tôi hoặc ticket chưa gán.
+            if (currentUserId.HasValue)
             {
-                Console.WriteLine("Response.Tickets is null");
-                allTickets = new List<AgentTicketDto>();
+                allTickets = allTickets
+                    .Where(t => t.AssignedToId == null || t.AssignedToId == currentUserId)
+                    .ToList();
             }
+
+            Console.WriteLine($"Loaded {allTickets.Count} tickets for agent dashboard");
             
             ApplyFilters();
         }
@@ -359,6 +481,16 @@
     private void ApplyFilters()
     {
         var query = allTickets.AsEnumerable();
+
+        // Tab filter
+        if (activeTab == "mine" && currentUserId.HasValue)
+        {
+            query = query.Where(t => t.AssignedToId == currentUserId);
+        }
+        else if (activeTab == "unassigned")
+        {
+            query = query.Where(t => t.AssignedToId == null);
+        }
         
         // Filter theo sản phẩm
         if (!string.IsNullOrEmpty(filterProduct))
@@ -391,12 +523,10 @@
                 t.UserEmail.ToLower().Contains(search));
         }
         
-        // Sort by Weighted Score (Công thức: Priority High + Thời gian chờ lâu = Xếp đầu)
-        // Weighted Score = (Priority * 100) + (Số giờ chờ / 24)
-        // Điểm cao hơn = ưu tiên hơn
+        // Sort by Weighted Score
         var now = DateTimeOffset.Now;
         query = query.OrderByDescending(t => CalculateWeightedScore(t, now))
-                     .ThenByDescending(t => t.SentimentScore < 0.4 ? 1 : 0); // Sentiment tiêu cực ưu tiên thêm
+                     .ThenByDescending(t => t.SentimentScore < 0.4 ? 1 : 0);
         
         var result = query.ToList();
         totalTickets = result.Count;
@@ -474,17 +604,17 @@
 
     private string GetPriorityClass(int priority) => priority switch
     {
-        0 => "priority-low",
-        1 => "priority-medium",
-        2 => "priority-high",
+        1 => "priority-low",
+        2 => "priority-medium",
+        3 => "priority-high",
         _ => "priority-medium"
     };
 
     private string GetPriorityText(int priority) => priority switch
     {
-        0 => "Thấp",
-        1 => "Trung bình",
-        2 => "Cao",
+        1 => "Thấp",
+        2 => "Trung bình",
+        3 => "Cao",
         _ => "Trung bình"
     };
 
@@ -519,6 +649,16 @@
         public string UserEmail { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
         public DateTimeOffset CreatedAt { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+    }
+
+    public class UserMeDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
     }
 
     // JSON Options để xử lý camelCase từ Backend
@@ -550,6 +690,32 @@
         public Guid UserId { get; set; }
         public string? UserName { get; set; }
         public string? UserEmail { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+    }
+
+    public class AgentQueueResponse
+    {
+        public List<AgentQueueTicketDTO> Tickets { get; set; } = new();
+        public int Total { get; set; }
+        public int Take { get; set; }
+        public int Skip { get; set; }
+    }
+
+    public class AgentQueueTicketDTO
+    {
+        public Guid Id { get; set; }
+        public string? Title { get; set; }
+        public int Priority { get; set; }
+        public int Status { get; set; }
+        public int? Category { get; set; }
+        public float? SentimentScore { get; set; }
+        public string? CustomerName { get; set; }
+        public string? CustomerEmail { get; set; }
+        public string? ProductName { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
     }
 
     // DTO cho danh sách sản phẩm

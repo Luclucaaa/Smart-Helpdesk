@@ -78,9 +78,11 @@ builder.Services.AddScoped<ITicketsService, TicketsService>();
 builder.Services.AddScoped<ICommentsService, CommentsService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<ICannedResponsesService, CannedResponsesService>();
 
 // AI Services
 builder.Services.AddSingleton<ISentimentService, SentimentService>();
+builder.Services.AddSingleton<ICategoryClassifierService, CategoryClassifierService>();
 
 // Đăng ký GeminiService với DI, lấy API key từ cấu hình
 builder.Services.AddSingleton<GeminiService>(sp =>

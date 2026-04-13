@@ -101,6 +101,23 @@
                 <span>+5%</span>
             </div>
         </div>
+        <div class="stat-card unassigned">
+            <div class="stat-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value">@unassignedTickets</span>
+                <span class="stat-label">Chưa phân công</span>
+            </div>
+            @if (unassignedTickets > 0)
+            {
+                <div class="stat-badge danger">Cần gán</div>
+            }
+        </div>
     </div>
 
     <!-- Main Content Grid -->
@@ -239,6 +256,53 @@
             </div>
         </div>
 
+        <!-- Top Agents Performance -->
+        <div class="dashboard-card agents-performance">
+            <div class="card-header">
+                <h3>Hiệu suất nhân viên</h3>
+                <a href="/admin/analytics" class="view-all-link">Xem báo cáo →</a>
+            </div>
+            <div class="card-content">
+                @if (agentPerformances.Count == 0)
+                {
+                    <div class="empty-state">
+                        <p>Chưa có dữ liệu nhân viên</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="agents-list">
+                        @foreach (var agent in agentPerformances)
+                        {
+                            <div class="agent-row">
+                                <div class="agent-avatar">
+                                    @agent.Name.Substring(0, 1).ToUpper()
+                                </div>
+                                <div class="agent-info">
+                                    <span class="agent-name">@agent.Name</span>
+                                    <span class="agent-email">@agent.Email</span>
+                                </div>
+                                <div class="agent-stats">
+                                    <div class="agent-stat">
+                                        <span class="astat-val">@agent.TotalAssigned</span>
+                                        <span class="astat-lbl">ticket</span>
+                                    </div>
+                                    <div class="agent-stat">
+                                        <span class="astat-val success">@agent.Resolved</span>
+                                        <span class="astat-lbl">xong</span>
+                                    </div>
+                                    <div class="agent-stat">
+                                        <span class="astat-val rate">@agent.ResolutionRate%</span>
+                                        <span class="astat-lbl">tỷ lệ</span>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
         <!-- Priority Distribution -->
         <div class="dashboard-card priority-stats">
             <div class="card-header">
@@ -268,6 +332,7 @@
     private bool isLoading = true;
     private int totalTickets = 0;
     private int openTickets = 0;
+    private int unassignedTickets = 0;
     private int totalProducts = 0;
     private int totalUsers = 0;
     
@@ -282,6 +347,7 @@
 
     private List<TicketDTO> recentTickets = new();
     private List<ProductDTO> products = new();
+    private List<AgentPerformanceDto> agentPerformances = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -300,6 +366,7 @@
                 totalTickets = (int)ticketsResponse.Total;
                 recentTickets = ticketsResponse.Tickets.OrderByDescending(t => t.CreatedAt).Take(5).ToList();
                 openTickets = ticketsResponse.Tickets.Count(t => t.Status == 0 || t.Status == 1);
+                unassignedTickets = ticketsResponse.Tickets.Count(t => t.AssignedToId == null && t.Status != 2);
                 
                 // Count by category
                 bugCount = ticketsResponse.Tickets.Count(t => t.Category == 0);
@@ -326,6 +393,35 @@
             if (usersResponse != null)
             {
                 totalUsers = usersResponse.Count;
+            }
+
+            // Load agents and their performance
+            var agentsResponse = await Http.GetAsync("api/Users/agents");
+            if (agentsResponse.IsSuccessStatusCode)
+            {
+                var agentsContent = await agentsResponse.Content.ReadAsStringAsync();
+                var agents = System.Text.Json.JsonSerializer.Deserialize<List<AgentDto>>(agentsContent, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (agents != null && ticketsResponse?.Tickets != null)
+                {
+                    agentPerformances = agents.Select(a =>
+                    {
+                        var myTickets = ticketsResponse.Tickets.Where(t => t.AssignedToId == a.Id).ToList();
+                        var resolved = myTickets.Count(t => t.Status == 2);
+                        var total = myTickets.Count;
+                        return new AgentPerformanceDto
+                        {
+                            Id = a.Id,
+                            Name = $"{a.Name} {a.Surname}".Trim(),
+                            Email = a.Email,
+                            TotalAssigned = total,
+                            Resolved = resolved,
+                            InProgress = myTickets.Count(t => t.Status == 1),
+                            ResolutionRate = total > 0 ? Math.Round((double)resolved / total * 100, 1) : 0
+                        };
+                    })
+                    .OrderByDescending(a => a.Resolved)
+                    .ToList();
+                }
             }
         }
         catch (Exception ex)
@@ -392,6 +488,26 @@
         public int? Category { get; set; }
         public string ProductName { get; set; } = "";
         public DateTimeOffset CreatedAt { get; set; }
+        public Guid? AssignedToId { get; set; }
+    }
+
+    public class AgentDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+
+    public class AgentPerformanceDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+        public int TotalAssigned { get; set; }
+        public int Resolved { get; set; }
+        public int InProgress { get; set; }
+        public double ResolutionRate { get; set; }
     }
 
     public class ProductDTO

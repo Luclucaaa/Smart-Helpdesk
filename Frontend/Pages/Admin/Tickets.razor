@@ -122,18 +122,22 @@
                     {
                         <tr class="@(ticket.Priority == 3 ? "high-priority" : "") @(ticket.SentimentScore < 0.4 ? "negative-sentiment" : "")">
                             <td class="ticket-id">
-                                <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
-                                @if (ticket.SentimentScore < 0.4)
-                                {
-                                    <span class="sentiment-warning" title="Cảm xúc tiêu cực">🔥</span>
-                                }
+                                <div class="ticket-id-content">
+                                    <span class="id-badge">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                    @if (ticket.SentimentScore < 0.4)
+                                    {
+                                        <span class="sentiment-warning" title="Cảm xúc tiêu cực">🔥</span>
+                                    }
+                                </div>
                             </td>
                             <td class="customer-info">
-                                <span class="customer-name">@ticket.UserName</span>
-                                <span class="customer-email">@ticket.UserEmail</span>
+                                <div class="customer-info-content">
+                                    <span class="customer-name">@ticket.UserName</span>
+                                    <span class="customer-email">@ticket.UserEmail</span>
+                                </div>
                             </td>
                             <td class="ticket-desc">
-                                <span class="desc-text">@TruncateText(ticket.Description, 50)</span>
+                                <span class="desc-text" title="@ticket.Description">@TruncateText(ticket.Description, 80)</span>
                             </td>
                             <td>
                                 <span class="product-tag">@(ticket.ProductName ?? "Không xác định")</span>
@@ -156,7 +160,7 @@
                             <td class="date-cell">
                                 @ticket.CreatedAt.ToString("dd/MM/yyyy HH:mm")
                             </td>
-                            <td>
+                            <td class="actions-cell">
                                 <div class="action-buttons">
                                     <button class="action-btn view" title="Xem chi tiết" @onclick="() => ViewTicket(ticket.Id)">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

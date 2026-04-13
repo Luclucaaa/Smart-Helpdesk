@@ -1,0 +1,354 @@
+@page "/agent/profile"
+@layout AgentLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Net.Http.Json
+@using System.Text.Json
+
+<PageTitle>Hồ sơ cá nhân - Agent Dashboard</PageTitle>
+
+<div class="profile-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-left">
+            <h1>Hồ sơ cá nhân</h1>
+            <p>Thông tin và hiệu suất làm việc của bạn</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải thông tin...</p>
+        </div>
+    }
+    else
+    {
+        <div class="profile-grid">
+            <!-- Profile Card -->
+            <div class="profile-card">
+                <div class="avatar-section">
+                    <div class="avatar-circle">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                    </div>
+                    <div class="agent-badge">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        Agent
+                    </div>
+                </div>
+
+                <div class="profile-info">
+                    <h2>@($"{userInfo?.Name} {userInfo?.Surname}")</h2>
+                    <p class="email">@userInfo?.Email</p>
+                    <div class="role-tag">@(userInfo?.Role == "Agent" ? "Nhân viên hỗ trợ" : userInfo?.Role)</div>
+                </div>
+
+                <div class="profile-stats-row">
+                    <div class="mini-stat">
+                        <span class="stat-num">@(stats?.TotalAssigned ?? 0)</span>
+                        <span class="stat-lbl">Tổng ticket</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="stat-num success">@(stats?.Resolved ?? 0)</span>
+                        <span class="stat-lbl">Đã giải quyết</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="stat-num warning">@(stats?.InProgress ?? 0)</span>
+                        <span class="stat-lbl">Đang xử lý</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-section">
+                <h3 class="section-title">Hiệu suất làm việc</h3>
+                <div class="kpi-grid">
+                    <div class="kpi-card today">
+                        <div class="kpi-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="kpi-content">
+                            <span class="kpi-value">@(stats?.ResolvedToday ?? 0)</span>
+                            <span class="kpi-label">Giải quyết hôm nay</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card week">
+                        <div class="kpi-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                        </div>
+                        <div class="kpi-content">
+                            <span class="kpi-value">@(stats?.ResolvedThisWeek ?? 0)</span>
+                            <span class="kpi-label">Giải quyết tuần này</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card month">
+                        <div class="kpi-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                                <polyline points="17 6 23 6 23 12"></polyline>
+                            </svg>
+                        </div>
+                        <div class="kpi-content">
+                            <span class="kpi-value">@(stats?.ResolvedThisMonth ?? 0)</span>
+                            <span class="kpi-label">Giải quyết tháng này</span>
+                        </div>
+                    </div>
+                    <div class="kpi-card rate">
+                        <div class="kpi-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <div class="kpi-content">
+                            <span class="kpi-value">@(stats?.ResolutionRate ?? 0)%</span>
+                            <span class="kpi-label">Tỷ lệ giải quyết</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resolution Rate Bar -->
+                <div class="resolution-section">
+                    <div class="resolution-header">
+                        <span>Tỷ lệ hoàn thành tổng thể</span>
+                        <span class="rate-percent">@(stats?.ResolutionRate ?? 0)%</span>
+                    </div>
+                    <div class="resolution-bar">
+                        <div class="bar-fill" style="width: @(stats?.ResolutionRate ?? 0)%"></div>
+                    </div>
+                    <div class="resolution-legend">
+                        <span class="legend-item resolved">
+                            <span class="dot"></span> Đã giải quyết: @(stats?.Resolved ?? 0)
+                        </span>
+                        <span class="legend-item inprogress">
+                            <span class="dot"></span> Đang xử lý: @(stats?.InProgress ?? 0)
+                        </span>
+                        <span class="legend-item open">
+                            <span class="dot"></span> Chờ xử lý: @(stats?.Open ?? 0)
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Assigned Tickets -->
+            <div class="tickets-section">
+                <div class="section-header">
+                    <h3 class="section-title">Ticket đang phụ trách</h3>
+                    <a href="/agent/tickets" class="view-all-link">Xem tất cả →</a>
+                </div>
+
+                @if (myTickets.Count == 0)
+                {
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <p>Chưa có ticket nào được gán cho bạn</p>
+                        <a href="/agent/tickets" class="btn-explore">Xem danh sách ticket →</a>
+                    </div>
+                }
+                else
+                {
+                    <div class="tickets-list">
+                        @foreach (var ticket in myTickets.Take(8))
+                        {
+                            <div class="ticket-row @(ticket.Priority == 2 ? "urgent" : "")">
+                                <div class="ticket-main">
+                                    <span class="ticket-id">#@ticket.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                    @if (ticket.SentimentScore < 0.4)
+                                    {
+                                        <span class="fire-icon" title="Khách hàng không hài lòng">🔥</span>
+                                    }
+                                    <span class="ticket-desc">@TruncateText(ticket.Description, 55)</span>
+                                </div>
+                                <div class="ticket-badges">
+                                    <span class="status-badge @GetStatusClass(ticket.Status)">@GetStatusText(ticket.Status)</span>
+                                    <span class="priority-badge @GetPriorityClass(ticket.Priority)">@GetPriorityText(ticket.Priority)</span>
+                                </div>
+                                <button class="btn-view" @onclick="() => ViewTicket(ticket.Id)">Xem</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private UserInfoDto? userInfo;
+    private AgentStatsDto? stats;
+    private List<TicketSummaryDto> myTickets = new();
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            // Load user info
+            var userResponse = await Http.GetAsync("api/Users/me");
+            if (userResponse.IsSuccessStatusCode)
+            {
+                var content = await userResponse.Content.ReadAsStringAsync();
+                userInfo = JsonSerializer.Deserialize<UserInfoDto>(content, JsonOptions);
+            }
+
+            // Load stats
+            if (userInfo != null)
+            {
+                var statsResponse = await Http.GetAsync("api/Tickets/MyStats");
+                if (statsResponse.IsSuccessStatusCode)
+                {
+                    var statsContent = await statsResponse.Content.ReadAsStringAsync();
+                    stats = JsonSerializer.Deserialize<AgentStatsDto>(statsContent, JsonOptions);
+                }
+
+                // Load my assigned tickets
+                var ticketsResponse = await Http.GetAsync("api/Tickets/GetAllTickets?Take=1000&Skip=0");
+                if (ticketsResponse.IsSuccessStatusCode)
+                {
+                    var ticketsContent = await ticketsResponse.Content.ReadAsStringAsync();
+                    var ticketsData = JsonSerializer.Deserialize<RawTicketsResponse>(ticketsContent, JsonOptions);
+                    if (ticketsData?.Tickets != null)
+                    {
+                        myTickets = ticketsData.Tickets
+                            .Where(t => t.AssignedToId == userInfo.Id)
+                            .Select(t => new TicketSummaryDto
+                            {
+                                Id = t.Id,
+                                Description = t.Description ?? "",
+                                Status = t.Status,
+                                Priority = t.Priority,
+                                SentimentScore = t.SentimentScore,
+                                CreatedAt = t.CreatedAt
+                            })
+                            .OrderByDescending(t => t.Priority)
+                            .ToList();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading profile: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ViewTicket(Guid id) => Navigation.NavigateTo($"/agent/ticket/{id}");
+
+    private string TruncateText(string text, int max) =>
+        string.IsNullOrEmpty(text) ? "" : text.Length <= max ? text : text[..max] + "...";
+
+    private string GetStatusClass(int status) => status switch
+    {
+        0 => "status-new",
+        1 => "status-inprogress",
+        2 => "status-closed",
+        _ => "status-new"
+    };
+
+    private string GetStatusText(int status) => status switch
+    {
+        0 => "Mới",
+        1 => "Đang xử lý",
+        2 => "Đã đóng",
+        _ => "Mới"
+    };
+
+    private string GetPriorityClass(int priority) => priority switch
+    {
+        0 => "priority-low",
+        1 => "priority-medium",
+        2 => "priority-high",
+        _ => "priority-medium"
+    };
+
+    private string GetPriorityText(int priority) => priority switch
+    {
+        0 => "Thấp",
+        1 => "Trung bình",
+        2 => "Cao",
+        _ => "Trung bình"
+    };
+
+    // DTOs
+    public class UserInfoDto
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Surname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public int AssignedTicketsCount { get; set; }
+    }
+
+    public class AgentStatsDto
+    {
+        public int TotalAssigned { get; set; }
+        public int Resolved { get; set; }
+        public int InProgress { get; set; }
+        public int Open { get; set; }
+        public int ResolvedToday { get; set; }
+        public int ResolvedThisWeek { get; set; }
+        public int ResolvedThisMonth { get; set; }
+        public double ResolutionRate { get; set; }
+    }
+
+    public class TicketSummaryDto
+    {
+        public Guid Id { get; set; }
+        public string Description { get; set; } = "";
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public float? SentimentScore { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+    }
+
+    public class RawTicketsResponse
+    {
+        public int Take { get; set; }
+        public int Skip { get; set; }
+        public int Total { get; set; }
+        public List<RawTicketItem> Tickets { get; set; } = new();
+    }
+
+    public class RawTicketItem
+    {
+        public Guid Id { get; set; }
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int Status { get; set; }
+        public int Priority { get; set; }
+        public float? SentimentScore { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public Guid UserId { get; set; }
+        public Guid? AssignedToId { get; set; }
+        public string? AssignedToName { get; set; }
+    }
+}

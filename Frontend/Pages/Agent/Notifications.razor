@@ -1,0 +1,295 @@
+@page "/agent/notifications"
+@layout AgentLayout
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@using System.Text.Json
+
+<PageTitle>Thông báo - Agent Dashboard</PageTitle>
+
+<div class="notifications-page">
+    <div class="page-header">
+        <div>
+            <h1>Thông báo</h1>
+            <p>Theo dõi ticket được giao, sắp quá hạn và các cập nhật mới.</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn secondary" @onclick="ToggleUnreadOnly" disabled="@isLoading">
+                @(unreadOnly ? "Đang lọc: Chưa đọc" : "Hiển thị tất cả")
+            </button>
+            <button class="btn primary" @onclick="MarkAllAsRead" disabled="@(isLoading || isMarkingAll || unreadCount == 0)">
+                @if (isMarkingAll)
+                {
+                    <span>Đang xử lý...</span>
+                }
+                else
+                {
+                    <span>Đánh dấu tất cả đã đọc</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <div class="summary-bar">
+        <span><strong>@notifications.Count</strong> thông báo đang hiển thị</span>
+        <span class="dot">•</span>
+        <span class="unread">Chưa đọc: <strong>@unreadCount</strong></span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="error-box">
+            <span>@errorMessage</span>
+            <button class="btn retry" @onclick="LoadNotifications">Tải lại</button>
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="loader"></div>
+            <p>Đang tải thông báo...</p>
+        </div>
+    }
+    else if (notifications.Count == 0)
+    {
+        <div class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.7V4a2 2 0 1 0-4 0v1.3A6 6 0 0 0 6 11v3.2c0 .5-.2 1-.6 1.4L4 17h5"></path>
+                <path d="M9 17a3 3 0 0 0 6 0"></path>
+            </svg>
+            <h3>@(unreadOnly ? "Không có thông báo chưa đọc" : "Chưa có thông báo")</h3>
+            <p>Hệ thống sẽ hiển thị thông báo khi có ticket liên quan đến bạn.</p>
+        </div>
+    }
+    else
+    {
+        <div class="notifications-list">
+            @foreach (var item in notifications)
+            {
+                <article class="notification-item @(item.IsRead ? "" : "unread")">
+                    <div class="icon-wrap @GetTypeClass(item.Type)">
+                        @GetTypeIcon(item.Type)
+                    </div>
+
+                    <div class="content-wrap">
+                        <div class="top-line">
+                            <h3>@item.Title</h3>
+                            <span class="time">@GetTimeAgo(item.CreatedAt)</span>
+                        </div>
+                        <p>@item.Message</p>
+                        <div class="meta">
+                            <span class="type-tag @GetTypeClass(item.Type)">@GetTypeLabel(item.Type)</span>
+                            @if (item.TicketId.HasValue)
+                            {
+                                <span class="ticket-ref">Ticket #@item.TicketId.Value.ToString().Substring(0, 8).ToUpperInvariant()</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="item-actions">
+                        @if (item.TicketId.HasValue)
+                        {
+                            <button class="btn action" @onclick="() => OpenTicket(item)">Mở ticket</button>
+                        }
+                        @if (!item.IsRead)
+                        {
+                            <button class="btn action" @onclick="() => MarkAsRead(item)">Đã đọc</button>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool unreadOnly;
+    private bool isMarkingAll;
+    private string? errorMessage;
+    private int unreadCount;
+    private List<UserNotificationItem> notifications = new();
+
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadNotifications();
+    }
+
+    private async Task LoadNotifications()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await Http.GetAsync($"api/Notifications/my?unreadOnly={unreadOnly.ToString().ToLowerInvariant()}&take=100");
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "Không thể tải thông báo. Vui lòng thử lại.";
+                notifications.Clear();
+                unreadCount = 0;
+                return;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var payload = JsonSerializer.Deserialize<NotificationResponse>(content, JsonOptions);
+
+            notifications = payload?.Notifications ?? new List<UserNotificationItem>();
+            unreadCount = payload?.UnreadCount ?? 0;
+        }
+        catch
+        {
+            errorMessage = "Có lỗi khi kết nối tới máy chủ thông báo.";
+            notifications.Clear();
+            unreadCount = 0;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleUnreadOnly()
+    {
+        unreadOnly = !unreadOnly;
+        await LoadNotifications();
+    }
+
+    private async Task MarkAsRead(UserNotificationItem item)
+    {
+        if (item.IsRead)
+        {
+            return;
+        }
+
+        var response = await Http.PostAsync($"api/Notifications/{item.Id}/read", null);
+        if (!response.IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        item.IsRead = true;
+        item.ReadAt = DateTimeOffset.UtcNow;
+        if (unreadCount > 0)
+        {
+            unreadCount--;
+        }
+
+        if (unreadOnly)
+        {
+            notifications.Remove(item);
+        }
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        isMarkingAll = true;
+        try
+        {
+            var response = await Http.PostAsync("api/Notifications/read-all", null);
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            unreadCount = 0;
+            if (unreadOnly)
+            {
+                notifications.Clear();
+            }
+            else
+            {
+                var now = DateTimeOffset.UtcNow;
+                foreach (var item in notifications.Where(n => !n.IsRead))
+                {
+                    item.IsRead = true;
+                    item.ReadAt = now;
+                }
+            }
+        }
+        finally
+        {
+            isMarkingAll = false;
+        }
+    }
+
+    private async Task OpenTicket(UserNotificationItem item)
+    {
+        if (!item.IsRead)
+        {
+            await MarkAsRead(item);
+        }
+
+        if (item.TicketId.HasValue)
+        {
+            Navigation.NavigateTo($"/agent/tickets/{item.TicketId.Value}");
+        }
+    }
+
+    private static string GetTypeClass(string? type)
+    {
+        return (type ?? string.Empty).ToLowerInvariant() switch
+        {
+            "ticket_assigned" => "assigned",
+            "ticket_near_due" => "due",
+            "ticket_sla_breached" => "breached",
+            _ => "general"
+        };
+    }
+
+    private static string GetTypeLabel(string? type)
+    {
+        return (type ?? string.Empty).ToLowerInvariant() switch
+        {
+            "ticket_assigned" => "Được giao ticket",
+            "ticket_near_due" => "Sắp đến hạn",
+            "ticket_sla_breached" => "Vi phạm SLA",
+            _ => "Thông báo hệ thống"
+        };
+    }
+
+    private static MarkupString GetTypeIcon(string? type)
+    {
+        var icon = (type ?? string.Empty).ToLowerInvariant() switch
+        {
+            "ticket_assigned" => "<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'></path><circle cx='12' cy='7' r='4'></circle></svg>",
+            "ticket_near_due" => "<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'></circle><polyline points='12 6 12 12 16 14'></polyline></svg>",
+            "ticket_sla_breached" => "<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><path d='M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z'></path><line x1='12' y1='9' x2='12' y2='13'></line><line x1='12' y1='17' x2='12.01' y2='17'></line></svg>",
+            _ => "<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'><circle cx='12' cy='12' r='10'></circle><line x1='12' y1='8' x2='12' y2='12'></line><line x1='12' y1='16' x2='12.01' y2='16'></line></svg>"
+        };
+
+        return new MarkupString(icon);
+    }
+
+    private static string GetTimeAgo(DateTimeOffset createdAt)
+    {
+        var span = DateTimeOffset.UtcNow - createdAt;
+
+        if (span.TotalMinutes < 1) return "Vừa xong";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} phút trước";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours} giờ trước";
+        if (span.TotalDays < 7) return $"{(int)span.TotalDays} ngày trước";
+
+        return createdAt.ToLocalTime().ToString("HH:mm - dd/MM/yyyy");
+    }
+
+    private sealed class NotificationResponse
+    {
+        public int Total { get; set; }
+        public int UnreadCount { get; set; }
+        public List<UserNotificationItem>? Notifications { get; set; }
+    }
+
+    private sealed class UserNotificationItem
+    {
+        public Guid Id { get; set; }
+        public Guid? TicketId { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public bool IsRead { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? ReadAt { get; set; }
+    }
+}

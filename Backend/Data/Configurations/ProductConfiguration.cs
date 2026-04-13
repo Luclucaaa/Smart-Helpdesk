@@ -20,7 +20,7 @@ namespace SmartHelpdesk.Data.Configurations
             builder.HasMany(p => p.Tickets)
                 .WithOne(t => t.Product)
                 .HasForeignKey(t => t.ProductId)
-                .IsRequired()
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }
