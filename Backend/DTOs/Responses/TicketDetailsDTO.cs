@@ -1,4 +1,4 @@
-﻿using SmartHelpdesk.Data.Enums;
+using SmartHelpdesk.Data.Enums;
 
 namespace SmartHelpdesk.DTOs.Responses
 {
@@ -15,13 +15,19 @@ namespace SmartHelpdesk.DTOs.Responses
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
         public DateTimeOffset? ClosedAt { get; set; }
+        public DateTimeOffset? FirstResponseAt { get; set; }
+        public DateTimeOffset? ResolutionDueAt { get; set; }
+        public bool IsSlaBreached { get; set; }
         public Guid UserId { get; set; }
         public string UserName { get; set; } = null!;
         public string UserEmail { get; set; } = null!;
+        public Guid? AssignedToId { get; set; }
         public string? AssignedToName { get; set; }
         public string? AssignedToEmail { get; set; }
         public Guid? ProductId { get; set; }
         public string? ProductName { get; set; }
+        public int? FeedbackRating { get; set; }
+        public string? FeedbackComment { get; set; }
         public List<CommentDTO> Comments { get; set; } = null!;
         public List<AttachmentDTO>? Attachments { get; set; }
     }

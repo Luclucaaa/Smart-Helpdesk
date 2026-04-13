@@ -149,6 +149,50 @@ namespace SmartHelpdesk.API.Migrations
                     b.ToTable("Attachments");
                 });
 
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.CannedResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<int?>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("varchar(3000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("IsActive");
+
+                    b.ToTable("CannedResponses");
+                });
+
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Comment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -209,6 +253,39 @@ namespace SmartHelpdesk.API.Migrations
                     b.HasIndex("CategoryId");
 
                     b.ToTable("Products");
+                });
+
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.ProductAgentAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("AgentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.HasIndex("ProductId", "AgentId")
+                        .IsUnique();
+
+                    b.ToTable("ProductAgentAssignments");
                 });
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.ProductCategory", b =>
@@ -288,20 +365,34 @@ namespace SmartHelpdesk.API.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<DateTimeOffset?>("FirstResponseAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsSlaBreached")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Priority")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("ProductId")
+                    b.Property<Guid?>("ProductId")
                         .HasColumnType("char(36)");
 
                     b.Property<string>("ProductName")
                         .HasColumnType("longtext");
+
+                    b.Property<DateTimeOffset?>("ResolutionDueAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("SentimentLabel")
                         .HasColumnType("longtext");
 
                     b.Property<float?>("SentimentScore")
                         .HasColumnType("float");
+
+                    b.Property<DateTimeOffset?>("SlaBreachNotifiedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -325,7 +416,44 @@ namespace SmartHelpdesk.API.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("Status", "ResolutionDueAt");
+
                     b.ToTable("Tickets");
+                });
+
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.TicketFeedback", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TicketId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("TicketFeedbacks");
                 });
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.User", b =>
@@ -383,6 +511,53 @@ namespace SmartHelpdesk.API.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.UserNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<bool>("IsRead")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("TicketId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TicketId");
+
+                    b.HasIndex("UserId", "IsRead");
+
+                    b.ToTable("UserNotifications");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -447,6 +622,16 @@ namespace SmartHelpdesk.API.Migrations
                     b.Navigation("Comment");
                 });
 
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.CannedResponse", b =>
+                {
+                    b.HasOne("SmartHelpdesk.Data.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CreatedBy");
+                });
+
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Comment", b =>
                 {
                     b.HasOne("SmartHelpdesk.Data.Entities.Ticket", "Ticket")
@@ -476,6 +661,25 @@ namespace SmartHelpdesk.API.Migrations
                     b.Navigation("Category");
                 });
 
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.ProductAgentAssignment", b =>
+                {
+                    b.HasOne("SmartHelpdesk.Data.Entities.User", "Agent")
+                        .WithMany("ProductAssignments")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SmartHelpdesk.Data.Entities.Product", "Product")
+                        .WithMany("AgentAssignments")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Ticket", b =>
                 {
                     b.HasOne("SmartHelpdesk.Data.Entities.User", "AssignedTo")
@@ -486,8 +690,7 @@ namespace SmartHelpdesk.API.Migrations
                     b.HasOne("SmartHelpdesk.Data.Entities.Product", "Product")
                         .WithMany("Tickets")
                         .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("SmartHelpdesk.Data.Entities.User", "User")
                         .WithMany("CreatedTickets")
@@ -502,6 +705,43 @@ namespace SmartHelpdesk.API.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.TicketFeedback", b =>
+                {
+                    b.HasOne("SmartHelpdesk.Data.Entities.Ticket", "Ticket")
+                        .WithOne("Feedback")
+                        .HasForeignKey("SmartHelpdesk.Data.Entities.TicketFeedback", "TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SmartHelpdesk.Data.Entities.User", "User")
+                        .WithMany("TicketFeedbacks")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ticket");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SmartHelpdesk.Data.Entities.UserNotification", b =>
+                {
+                    b.HasOne("SmartHelpdesk.Data.Entities.Ticket", "Ticket")
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SmartHelpdesk.Data.Entities.User", "User")
+                        .WithMany("Notifications")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ticket");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Comment", b =>
                 {
                     b.Navigation("Attachments");
@@ -509,6 +749,8 @@ namespace SmartHelpdesk.API.Migrations
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Product", b =>
                 {
+                    b.Navigation("AgentAssignments");
+
                     b.Navigation("Tickets");
                 });
 
@@ -520,6 +762,8 @@ namespace SmartHelpdesk.API.Migrations
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.Ticket", b =>
                 {
                     b.Navigation("Comments");
+
+                    b.Navigation("Feedback");
                 });
 
             modelBuilder.Entity("SmartHelpdesk.Data.Entities.User", b =>
@@ -529,6 +773,12 @@ namespace SmartHelpdesk.API.Migrations
                     b.Navigation("Comments");
 
                     b.Navigation("CreatedTickets");
+
+                    b.Navigation("Notifications");
+
+                    b.Navigation("ProductAssignments");
+
+                    b.Navigation("TicketFeedbacks");
                 });
 #pragma warning restore 612, 618
         }

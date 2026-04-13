@@ -276,6 +276,48 @@ namespace SmartHelpdesk.Controllers
             return Ok(ticketId);
         }
 
+        [HttpPost("{id}/feedback")]
+        [Authorize]
+        public async Task<IActionResult> SubmitTicketFeedback(Guid id, [FromBody] SubmitTicketFeedbackDTO dto)
+        {
+            try
+            {
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null)
+                    return Unauthorized("Vui lòng đăng nhập");
+
+                var feedback = await _ticketsService.SubmitTicketFeedback(id, user.Id, dto);
+                return Ok(feedback);
+            }
+            catch (NotFoundException)
+            {
+                return NotFound("Không tìm thấy ticket");
+            }
+            catch (ForbiddenException)
+            {
+                return Forbid();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [HttpGet("{id}/feedback")]
+        [Authorize]
+        public async Task<IActionResult> GetTicketFeedback(Guid id)
+        {
+            var feedback = await _ticketsService.GetTicketFeedback(id);
+            if (feedback == null)
+                return NotFound();
+
+            return Ok(feedback);
+        }
+
         [HttpPost("CreateTicketWithAttachments")]
         [Authorize]
         [RequestSizeLimit(50 * 1024 * 1024)] // 50MB max
@@ -420,9 +462,33 @@ namespace SmartHelpdesk.Controllers
 
         public async Task<IActionResult> CreateComment(CreateCommentDTO commentDTO)
         {
+            var user = await _userManager.GetCurrentUserAsync(User);
+            if (user == null)
+                return Unauthorized("Vui lòng đăng nhập");
+
+            // Always trust identity from JWT, not client payload.
+            commentDTO.UserId = user.Id;
+
             var validationRes = _createCommentValidator.Validate(commentDTO);
             if (!validationRes.IsValid)
                 return BadRequest(validationRes);
+
+            try
+            {
+                var ticket = await _ticketsService.GetTicket(commentDTO.TicketId);
+
+                var isCustomer = await _userManager.IsInRoleAsync(user, "Customer")
+                    || await _userManager.IsInRoleAsync(user, "Khách hàng");
+
+                if (isCustomer && ticket.UserId != user.Id)
+                {
+                    return Forbid();
+                }
+            }
+            catch (NotFoundException)
+            {
+                return NotFound("Không tìm thấy ticket");
+            }
 
             var commentId = await _commentsService.CreateComment(commentDTO);
 
@@ -437,24 +503,260 @@ namespace SmartHelpdesk.Controllers
             if (user == null)
                 return Unauthorized("Vui lòng đăng nhập");
 
-            var isCustomer = await _userManager.IsInRoleAsync(user, "Customer");
-
-
-            if (isCustomer && user.CreatedTickets.FirstOrDefault(t => t.Id == ticketId) == null)
-            {
-                return Forbid();
-            }
-
             try
             {
-               var comments  = await _commentsService.GetCommentsToTicket(ticketId);
-               return Ok(comments);
+                var ticket = await _ticketsService.GetTicket(ticketId);
+
+                var isCustomer = await _userManager.IsInRoleAsync(user, "Customer")
+                    || await _userManager.IsInRoleAsync(user, "Khách hàng");
+
+                if (isCustomer && ticket.UserId != user.Id)
+                {
+                    return Forbid();
+                }
+
+                var comments = await _commentsService.GetCommentsToTicket(ticketId);
+                return Ok(comments);
             }
             catch (NotFoundException)
             {
                 return NotFound();
             }
 
+        }
+
+        // ============================================================
+        // ASSIGN TICKET APIs
+        // ============================================================
+
+        /// <summary>
+        /// Admin gán ticket cho một nhân viên cụ thể (hoặc gỡ gán nếu AgentId = null)
+        /// </summary>
+        [HttpPost("AssignTicket/{id}")]
+        [Authorize(Roles = "Admin,Quản trị viên")]
+        public async Task<IActionResult> AssignTicket(Guid id, [FromBody] AssignTicketDTO dto)
+        {
+            try
+            {
+                if (dto == null)
+                {
+                    return BadRequest("Dữ liệu gán ticket không hợp lệ");
+                }
+
+                if (dto.AgentId.HasValue)
+                {
+                    var assignee = await _userManager.FindByIdAsync(dto.AgentId.Value.ToString());
+                    if (assignee == null)
+                    {
+                        return BadRequest("Không tìm thấy nhân viên được chọn");
+                    }
+
+                    var isAgent = await _userManager.IsInRoleAsync(assignee, "Agent")
+                        || await _userManager.IsInRoleAsync(assignee, "Nhân viên");
+
+                    if (!isAgent)
+                    {
+                        return BadRequest("Người dùng được chọn không thuộc nhóm nhân viên hỗ trợ");
+                    }
+                }
+
+                await _ticketsService.AssignTicket(id, dto.AgentId);
+                return Ok(new { message = dto.AgentId.HasValue ? "Đã gán nhân viên thành công" : "Đã hủy gán nhân viên" });
+            }
+            catch (NotFoundException)
+            {
+                return NotFound("Không tìm thấy ticket");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Nhân viên tự nhận ticket (self-assign)
+        /// </summary>
+        [HttpPost("SelfAssign/{id}")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
+        public async Task<IActionResult> SelfAssign(Guid id)
+        {
+            try
+            {
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null) return Unauthorized();
+
+                var ticket = await _ticketsService.GetTicket(id);
+
+                if (ticket.AssignedToId.HasValue)
+                {
+                    if (ticket.AssignedToId.Value == user.Id)
+                    {
+                        return Ok(new { message = "Ticket này đã được bạn nhận trước đó", agentName = user.Name + " " + user.Surname });
+                    }
+
+                    return Conflict("Ticket đã có nhân viên khác phụ trách");
+                }
+
+                await _ticketsService.AssignTicket(id, user.Id);
+                return Ok(new { message = "Đã nhận ticket thành công", agentName = user.Name + " " + user.Surname });
+            }
+            catch (NotFoundException)
+            {
+                return NotFound("Không tìm thấy ticket");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy các ticket đang được gán cho nhân viên hiện tại
+        /// </summary>
+        [HttpGet("MyAssignedTickets")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
+        public async Task<IActionResult> GetMyAssignedTickets([FromQuery] int Take = 1000, [FromQuery] int Skip = 0)
+        {
+            try
+            {
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null) return Unauthorized();
+
+                var tickets = await _ticketsService.GetAgentSmartQueue(user.Id, new AgentTicketFiltersDTO
+                {
+                    Take = Take,
+                    Skip = Skip
+                });
+
+                return Ok(tickets);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy các ticket chưa được gán cho ai (Unassigned)
+        /// </summary>
+        [HttpGet("UnassignedTickets")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
+        public async Task<IActionResult> GetUnassignedTickets([FromQuery] int Take = 1000, [FromQuery] int Skip = 0)
+        {
+            try
+            {
+                var tickets = await _ticketsService.GetUnassignedTickets(new AgentTicketFiltersDTO
+                {
+                    Take = Take,
+                    Skip = Skip
+                });
+
+                return Ok(tickets);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy thống kê hiệu suất của một nhân viên cụ thể
+        /// </summary>
+        [HttpGet("AgentStats/{agentId}")]
+        [Authorize(Roles = "Admin,Agent")]
+        public async Task<IActionResult> GetAgentStats(Guid agentId)
+        {
+            try
+            {
+                var stats = await _ticketsService.GetAgentStats(agentId);
+                return Ok(stats);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy thống kê hiệu suất của nhân viên hiện tại (self)
+        /// </summary>
+        [HttpGet("MyStats")]
+        [Authorize(Roles = "Admin,Agent")]
+        public async Task<IActionResult> GetMyStats()
+        {
+            try
+            {
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null) return Unauthorized();
+
+                var stats = await _ticketsService.GetAgentStats(user.Id);
+                return Ok(stats);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        // ✅ AGENT DASHBOARD ENDPOINTS ✅
+
+        /// <summary>
+        /// Danh sách Smart Queue cho agent (Tickets đã gán + sắp xếp theo Priority + waiting time)
+        /// </summary>
+        [HttpGet("AgentDashboard/SmartQueue")]
+        [Authorize(Roles = "Admin,Agent")]
+        public async Task<IActionResult> GetAgentSmartQueue([FromQuery] AgentTicketFiltersDTO filters)
+        {
+            try
+            {
+                var user = await _userManager.GetCurrentUserAsync(User);
+                if (user == null) return Unauthorized();
+
+                var queue = await _ticketsService.GetAgentSmartQueue(user.Id, filters);
+                return Ok(queue);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Danh sách Unassigned Tickets (Tickets chưa được gán - agent có thể pick/assign cho mình)
+        /// </summary>
+        [HttpGet("AgentDashboard/UnassignedQueue")]
+        [Authorize(Roles = "Admin,Agent")]
+        public async Task<IActionResult> GetUnassignedQueue([FromQuery] AgentTicketFiltersDTO filters)
+        {
+            try
+            {
+                var queue = await _ticketsService.GetUnassignedTickets(filters);
+                return Ok(queue);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        // ✅ ADMIN DASHBOARD ENDPOINTS ✅
+
+        /// <summary>
+        /// Dashboard chính cho Admin - Tất cả metrics (tickets, sentiment, agent stats, trends...)
+        /// </summary>
+        [HttpGet("AdminDashboard")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAdminDashboard()
+        {
+            try
+            {
+                var dashboard = await _ticketsService.GetAdminDashboard();
+                return Ok(dashboard);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
         }
     }
 }

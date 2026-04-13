@@ -234,6 +234,16 @@
     color: white;
 }
 
+.action-btn.assign {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.action-btn.assign:hover {
+    background: #16a34a;
+    color: white;
+}
+
 .action-btn.delete {
     background: #fee2e2;
     color: #dc2626;
@@ -557,6 +567,32 @@
 .btn-delete:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+.assignment-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.assignment-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+.assignment-item input[type="checkbox"] {
+    margin-top: 3px;
+}
+
+.assignment-item small {
+    color: #6b7280;
 }
 
 /* Responsive */

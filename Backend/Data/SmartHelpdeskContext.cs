@@ -15,6 +15,10 @@ namespace SmartHelpdesk.Data
         public DbSet<Attachment> Attachments { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<ProductCategory> ProductCategories { get; set; }
+        public DbSet<CannedResponse> CannedResponses { get; set; }
+        public DbSet<ProductAgentAssignment> ProductAgentAssignments { get; set; }
+        public DbSet<TicketFeedback> TicketFeedbacks { get; set; }
+        public DbSet<UserNotification> UserNotifications { get; set; }
         
         public SmartHelpdeskContext(DbContextOptions<SmartHelpdeskContext> opt)
             : base(opt) { }
@@ -37,6 +41,10 @@ namespace SmartHelpdesk.Data
             modelBuilder.ApplyConfiguration(new TicketConfiguration());
             modelBuilder.ApplyConfiguration(new ProductConfiguration());
             modelBuilder.ApplyConfiguration(new ProductCategoryConfiguration());
+            modelBuilder.ApplyConfiguration(new CannedResponseConfiguration());
+            modelBuilder.ApplyConfiguration(new ProductAgentAssignmentConfiguration());
+            modelBuilder.ApplyConfiguration(new TicketFeedbackConfiguration());
+            modelBuilder.ApplyConfiguration(new UserNotificationConfiguration());
         }
     }
 }

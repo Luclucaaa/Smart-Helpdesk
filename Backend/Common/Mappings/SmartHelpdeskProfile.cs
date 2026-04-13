@@ -37,6 +37,10 @@ namespace SmartHelpdesk.Common.Mappings
             CreateMap<Attachment, AttachmentDTO>()
                 .ForMember(dest => dest.Url, opt => opt.MapFrom(src =>
                     "/" + src.Path.Replace("\\", "/").Replace("\\", "/")));
+
+            CreateMap<CreateCannedResponseDTO, CannedResponse>();
+            CreateMap<CannedResponse, CannedResponseDTO>()
+                .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedBy == null ? null : src.CreatedBy.Name));
         }
 
     }

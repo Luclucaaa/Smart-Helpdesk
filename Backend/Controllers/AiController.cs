@@ -14,15 +14,18 @@ namespace SmartHelpdesk.Controllers;
 public class AiController : ControllerBase
 {
     private readonly ISentimentService _sentimentService;
+    private readonly ICategoryClassifierService _categoryClassifierService;
     private readonly ILogger<AiController> _logger;
     private readonly GeminiService _geminiService;
 
     public AiController(
         ISentimentService sentimentService,
+        ICategoryClassifierService categoryClassifierService,
         ILogger<AiController> logger,
         GeminiService geminiService)
     {
         _sentimentService = sentimentService;
+        _categoryClassifierService = categoryClassifierService;
         _logger = logger;
         _geminiService = geminiService;
     }
@@ -89,6 +92,20 @@ public class AiController : ControllerBase
             return StatusCode(500, new { error = "Failed to analyze sentiment" });
         }
     }
+
+    [HttpPost("classify-category")]
+    [ProducesResponseType(typeof(CategoryClassificationDTO), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public ActionResult<CategoryClassificationDTO> ClassifyCategory([FromBody] CategoryClassificationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Description))
+        {
+            return BadRequest(new { error = "Description is required" });
+        }
+
+        var result = _categoryClassifierService.Classify(request.Description, request.Title, request.ProductName);
+        return Ok(result);
+    }
     /// <summary>
     /// Gửi câu hỏi tới Gemini AI và nhận phản hồi
     /// </summary>
@@ -114,4 +131,11 @@ public class AiController : ControllerBase
             return StatusCode(500, new { error = "Failed to get answer from Gemini" });
         }
     }
+}
+
+public class CategoryClassificationRequest
+{
+    public string? Title { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string? ProductName { get; set; }
 }

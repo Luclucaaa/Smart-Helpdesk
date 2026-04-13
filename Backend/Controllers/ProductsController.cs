@@ -1,8 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using SmartHelpdesk.Common.Identity;
 using SmartHelpdesk.Data;
 using SmartHelpdesk.Data.Entities;
+using SmartHelpdesk.DTOs.Requests;
 
 namespace SmartHelpdesk.Controllers
 {
@@ -12,10 +15,12 @@ namespace SmartHelpdesk.Controllers
     public class ProductsController : ControllerBase
     {
         private readonly SmartHelpdeskContext _context;
+        private readonly UserManager<User> _userManager;
 
-        public ProductsController(SmartHelpdeskContext context)
+        public ProductsController(SmartHelpdeskContext context, UserManager<User> userManager)
         {
             _context = context;
+            _userManager = userManager;
         }
 
         /// <summary>
@@ -43,6 +48,7 @@ namespace SmartHelpdesk.Controllers
                     IsActive = p.IsActive,
                     CreatedAt = p.CreatedAt,
                     TicketCount = p.Tickets.Count,
+                    AssignedAgentCount = p.AgentAssignments.Count(a => a.IsActive),
                     CategoryId = p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.Name : null
                 })
@@ -69,6 +75,7 @@ namespace SmartHelpdesk.Controllers
                     IsActive = p.IsActive,
                     CreatedAt = p.CreatedAt,
                     TicketCount = p.Tickets.Count,
+                    AssignedAgentCount = p.AgentAssignments.Count(a => a.IsActive),
                     CategoryId = p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.Name : null
                 })
@@ -168,6 +175,103 @@ namespace SmartHelpdesk.Controllers
 
             return Ok(products);
         }
+
+        [HttpGet("{id}/assignments")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
+        public async Task<IActionResult> GetProductAssignments(Guid id)
+        {
+            var productExists = await _context.Products.AnyAsync(p => p.Id == id);
+            if (!productExists)
+            {
+                return NotFound("Không tìm thấy sản phẩm");
+            }
+
+            var assignments = await _context.ProductAgentAssignments
+                .Where(x => x.ProductId == id && x.IsActive)
+                .Select(x => new ProductAgentAssignmentDTO
+                {
+                    AssignmentId = x.Id,
+                    ProductId = x.ProductId,
+                    AgentId = x.AgentId,
+                    AgentName = x.Agent.Name,
+                    AgentSurname = x.Agent.Surname,
+                    AgentEmail = x.Agent.Email ?? string.Empty,
+                    CreatedAt = x.CreatedAt
+                })
+                .OrderBy(x => x.AgentName)
+                .ToListAsync();
+
+            return Ok(assignments);
+        }
+
+        [HttpPut("{id}/assignments")]
+        [Authorize(Roles = "Admin,Quản trị viên")]
+        public async Task<IActionResult> UpdateProductAssignments(Guid id, [FromBody] UpdateProductAssignmentsDTO dto)
+        {
+            var productExists = await _context.Products.AnyAsync(p => p.Id == id);
+            if (!productExists)
+            {
+                return NotFound("Không tìm thấy sản phẩm");
+            }
+
+            var desiredIds = (dto.AgentIds ?? new List<Guid>()).Distinct().ToList();
+
+            foreach (var agentId in desiredIds)
+            {
+                var user = await _userManager.FindByIdAsync(agentId.ToString());
+                if (user == null)
+                {
+                    return BadRequest($"Không tìm thấy nhân viên: {agentId}");
+                }
+
+                var isAgent = await _userManager.IsInRoleAsync(user, "Agent")
+                    || await _userManager.IsInRoleAsync(user, "Nhân viên");
+
+                if (!isAgent)
+                {
+                    return BadRequest($"Người dùng {user.Email} không thuộc nhóm nhân viên hỗ trợ");
+                }
+            }
+
+            var currentAssignments = await _context.ProductAgentAssignments
+                .Where(x => x.ProductId == id)
+                .ToListAsync();
+
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var assignment in currentAssignments)
+            {
+                if (!desiredIds.Contains(assignment.AgentId))
+                {
+                    assignment.IsActive = false;
+                    assignment.UpdatedAt = now;
+                }
+            }
+
+            foreach (var agentId in desiredIds)
+            {
+                var existing = currentAssignments.FirstOrDefault(x => x.AgentId == agentId);
+                if (existing == null)
+                {
+                    _context.ProductAgentAssignments.Add(new ProductAgentAssignment
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductId = id,
+                        AgentId = agentId,
+                        IsActive = true,
+                        CreatedAt = now
+                    });
+                }
+                else if (!existing.IsActive)
+                {
+                    existing.IsActive = true;
+                    existing.UpdatedAt = now;
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Cập nhật phân công sản phẩm thành công", totalAgents = desiredIds.Count });
+        }
     }
 
     // DTOs
@@ -179,8 +283,20 @@ namespace SmartHelpdesk.Controllers
         public bool IsActive { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public int TicketCount { get; set; }
+        public int AssignedAgentCount { get; set; }
         public Guid? CategoryId { get; set; }
         public string? CategoryName { get; set; }
+    }
+
+    public class ProductAgentAssignmentDTO
+    {
+        public Guid AssignmentId { get; set; }
+        public Guid ProductId { get; set; }
+        public Guid AgentId { get; set; }
+        public string AgentName { get; set; } = string.Empty;
+        public string AgentSurname { get; set; } = string.Empty;
+        public string AgentEmail { get; set; } = string.Empty;
+        public DateTimeOffset CreatedAt { get; set; }
     }
 
     public class CreateProductDTO

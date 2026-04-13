@@ -15,6 +15,10 @@ namespace SmartHelpdesk.Data.Entities
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset? UpdatedAt { get; set; }
         public DateTimeOffset? ClosedAt { get; set; }
+        public DateTimeOffset? FirstResponseAt { get; set; }
+        public DateTimeOffset? ResolutionDueAt { get; set; }
+        public bool IsSlaBreached { get; set; }
+        public DateTimeOffset? SlaBreachNotifiedAt { get; set; }
         
         // Foreign Keys
         public Guid UserId { get; set; }
@@ -27,5 +31,6 @@ namespace SmartHelpdesk.Data.Entities
         public User? AssignedTo { get; set; }
         public Product? Product { get; set; }
         public List<Comment> Comments { get; set; } = new List<Comment>();
+        public TicketFeedback? Feedback { get; set; }
     }
 }

@@ -1,0 +1,390 @@
+.profile-page {
+    max-width: 1200px;
+}
+
+.page-header {
+    margin-bottom: 28px;
+}
+
+.page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 4px;
+}
+
+.page-header p {
+    color: #64748b;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px;
+    gap: 16px;
+    color: #64748b;
+}
+
+.loader {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Profile Grid */
+.profile-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto auto;
+    gap: 24px;
+    align-items: start;
+}
+
+/* Profile Card */
+.profile-card {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    text-align: center;
+    grid-row: 1 / 2;
+}
+
+.avatar-section {
+    position: relative;
+}
+
+.avatar-circle {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.agent-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    background: #3b82f6;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 2px solid white;
+}
+
+.profile-info h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 4px;
+}
+
+.profile-info .email {
+    color: #64748b;
+    font-size: 0.9rem;
+    margin: 0 0 10px;
+}
+
+.role-tag {
+    background: #eff6ff;
+    color: #2563eb;
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 14px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.profile-stats-row {
+    display: flex;
+    gap: 0;
+    width: 100%;
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+}
+
+.mini-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px;
+    border-right: 1px solid #f1f5f9;
+}
+
+.mini-stat:last-child { border-right: none; }
+
+.stat-num {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.stat-num.success { color: #059669; }
+.stat-num.warning { color: #d97706; }
+
+.stat-lbl {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    text-align: center;
+}
+
+/* KPI Section */
+.kpi-section {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    grid-row: 1 / 2;
+}
+
+.section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.view-all-link {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.kpi-card {
+    border-radius: 12px;
+    padding: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.kpi-card.today { background: linear-gradient(135deg, #667eea20, #667eea10); border: 1px solid #667eea30; }
+.kpi-card.week { background: linear-gradient(135deg, #10b98120, #10b98110); border: 1px solid #10b98130; }
+.kpi-card.month { background: linear-gradient(135deg, #f59e0b20, #f59e0b10); border: 1px solid #f59e0b30; }
+.kpi-card.rate { background: linear-gradient(135deg, #ec489920, #ec489910); border: 1px solid #ec489930; }
+
+.kpi-card.today .kpi-icon { color: #667eea; }
+.kpi-card.week .kpi-icon { color: #10b981; }
+.kpi-card.month .kpi-icon { color: #f59e0b; }
+.kpi-card.rate .kpi-icon { color: #ec4899; }
+
+.kpi-icon { flex-shrink: 0; }
+
+.kpi-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.kpi-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    line-height: 1;
+}
+
+.kpi-label {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Resolution Bar */
+.resolution-section {
+    margin-top: 4px;
+}
+
+.resolution-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.875rem;
+    color: #475569;
+}
+
+.rate-percent {
+    font-weight: 700;
+    color: #059669;
+    font-size: 1rem;
+}
+
+.resolution-bar {
+    height: 10px;
+    background: #f1f5f9;
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #059669);
+    border-radius: 99px;
+    transition: width 0.8s ease;
+}
+
+.resolution-legend {
+    display: flex;
+    gap: 20px;
+    font-size: 0.8rem;
+}
+
+.legend-item { display: flex; align-items: center; gap: 6px; color: #64748b; }
+.legend-item .dot { width: 8px; height: 8px; border-radius: 50%; }
+.legend-item.resolved .dot { background: #059669; }
+.legend-item.inprogress .dot { background: #d97706; }
+.legend-item.open .dot { background: #94a3b8; }
+
+/* Tickets Section */
+.tickets-section {
+    background: white;
+    border-radius: 16px;
+    padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    grid-column: 1 / 3;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px;
+    gap: 12px;
+    color: #94a3b8;
+}
+
+.empty-state p { margin: 0; }
+
+.btn-explore {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+.tickets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ticket-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    transition: all 0.15s;
+}
+
+.ticket-row:hover { background: #f1f5f9; }
+.ticket-row.urgent { border-left: 3px solid #ef4444; background: #fff5f5; }
+
+.ticket-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ticket-id {
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    font-family: monospace;
+}
+
+.fire-icon { font-size: 0.9rem; }
+
+.ticket-desc {
+    font-size: 0.875rem;
+    color: #475569;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ticket-badges {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.status-badge, .priority-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+.status-new { background: #eff6ff; color: #2563eb; }
+.status-inprogress { background: #fef3c7; color: #d97706; }
+.status-closed { background: #f0fdf4; color: #059669; }
+
+.priority-low { background: #f1f5f9; color: #64748b; }
+.priority-medium { background: #fef3c7; color: #b45309; }
+.priority-high { background: #fef2f2; color: #dc2626; }
+
+.btn-view {
+    background: #3b82f6;
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.btn-view:hover { background: #2563eb; }

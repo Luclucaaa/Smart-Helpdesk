@@ -11,6 +11,74 @@
     to { opacity: 1; transform: translateY(0); }
 }
 
+.feedback-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.feedback-section h4 {
+    margin-bottom: 10px;
+}
+
+.rating-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.rating-btn {
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #9ca3af;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.rating-btn.active {
+    color: #f59e0b;
+    border-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.feedback-section textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 10px 12px;
+    resize: vertical;
+}
+
+.feedback-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.btn-feedback {
+    border: none;
+    background: #2563eb;
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-feedback:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.feedback-message {
+    font-size: 0.9rem;
+    color: #065f46;
+}
+
 /* Loading & Not Found States */
 .loading-state, .not-found {
     grid-column: 1 / -1;

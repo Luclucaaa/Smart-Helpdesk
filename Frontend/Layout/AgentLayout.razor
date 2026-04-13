@@ -1,7 +1,10 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject HttpClient Http
 @inject SmartHelpdesk.Client.Services.AuthService AuthService
+@implements IDisposable
+@using System.Text.Json
 
 <div class="agent-layout">
     <!-- Sidebar -->
@@ -34,6 +37,24 @@
                 </svg>
                 <span>Danh sách yêu cầu</span>
             </a>
+            <a href="/agent/notifications" class="nav-item @(IsActive("/agent/notifications") ? "active" : "")">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.7V4a2 2 0 1 0-4 0v1.3A6 6 0 0 0 6 11v3.2c0 .5-.2 1-.6 1.4L4 17h5"></path>
+                    <path d="M9 17a3 3 0 0 0 6 0"></path>
+                </svg>
+                <span>Thông báo</span>
+                @if (unreadNotificationCount > 0)
+                {
+                    <span class="notification-badge">@unreadNotificationCount</span>
+                }
+            </a>
+            <a href="/agent/profile" class="nav-item @(IsActive("/agent/profile") ? "active" : "")">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Hồ sơ cá nhân</span>
+            </a>
         </nav>
         
         <div class="sidebar-footer">
@@ -59,6 +80,30 @@
         </div>
     </aside>
     
+    <!-- Notification Toast -->
+    @if (showNotification)
+    {
+        <div class="notification-toast @(notificationIsSuccess ? "success" : "info")">
+            <div class="toast-icon">
+                @if (notificationIsSuccess)
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                }
+                else
+                {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                }
+            </div>
+            <span>@notificationMessage</span>
+        </div>
+    }
+    
     <!-- Main Content -->
     <main class="main-content">
         @Body
@@ -67,6 +112,16 @@
 
 @code {
     private string userName = "Nhân viên";
+    private bool showNotification = false;
+    private string notificationMessage = "";
+    private bool notificationIsSuccess = true;
+    private int unreadNotificationCount = 0;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -87,6 +142,37 @@
                 userName = name;
                 StateHasChanged();
             }
+
+            await LoadUnreadNotificationCount();
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _ = InvokeAsync(async () =>
+        {
+            await LoadUnreadNotificationCount();
+            StateHasChanged();
+        });
+    }
+
+    private async Task LoadUnreadNotificationCount()
+    {
+        try
+        {
+            var response = await Http.GetAsync("api/Notifications/my?unreadOnly=true&take=1");
+            if (!response.IsSuccessStatusCode)
+            {
+                return;
+            }
+
+            var content = await response.Content.ReadAsStringAsync();
+            var payload = JsonSerializer.Deserialize<NotificationCountResponse>(content, JsonOptions);
+            unreadNotificationCount = payload?.UnreadCount ?? 0;
+        }
+        catch
+        {
+            // Keep layout resilient when notification API is unavailable.
         }
     }
 
@@ -104,5 +190,15 @@
     {
         await AuthService.RemoveTokenAsync();
         Navigation.NavigateTo("/auth", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    private sealed class NotificationCountResponse
+    {
+        public int UnreadCount { get; set; }
     }
 }

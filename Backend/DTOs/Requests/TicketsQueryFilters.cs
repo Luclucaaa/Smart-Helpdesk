@@ -12,5 +12,7 @@ namespace SmartHelpdesk.DTOs.Requests
         public Status? Status { get; set; }
         public Guid? AsignedToId { get; set; }
         public Guid? UserId { get; set; }
+        public Guid? ProductId { get; set; }  // Lọc theo sản phẩm
+        public Category? Category { get; set; }  // Lọc theo Category (Bug/Feature/Sale)
     }
 }

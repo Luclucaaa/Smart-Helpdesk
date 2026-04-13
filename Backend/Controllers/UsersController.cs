@@ -121,16 +121,29 @@ namespace SmartHelpdesk.Controllers
         /// Lấy danh sách nhân viên hỗ trợ (Agent)
         /// </summary>
         [HttpGet("agents")]
-        [Authorize(Roles = "Admin,Agent")]
+        [Authorize(Roles = "Admin,Agent,Quản trị viên,Nhân viên")]
         public async Task<IActionResult> GetAgents()
         {
             var agentRole = await _roleManager.FindByNameAsync("Agent");
-            if (agentRole == null)
+            var staffRole = await _roleManager.FindByNameAsync("Nhân viên");
+
+            if (agentRole == null && staffRole == null)
                 return Ok(new List<UserDetailDTO>());
 
+            var roleIds = new List<Guid>();
+            if (agentRole != null)
+            {
+                roleIds.Add(agentRole.Id);
+            }
+            if (staffRole != null)
+            {
+                roleIds.Add(staffRole.Id);
+            }
+
             var agentUserIds = await _context.UserRoles
-                .Where(ur => ur.RoleId == agentRole.Id)
+                .Where(ur => roleIds.Contains(ur.RoleId))
                 .Select(ur => ur.UserId)
+                .Distinct()
                 .ToListAsync();
 
             var agents = await _context.Users
@@ -176,6 +189,31 @@ namespace SmartHelpdesk.Controllers
                 AdminCount = adminCount,
                 AgentCount = agentCount,
                 CustomerCount = customerCount
+            });
+        }
+
+        /// <summary>
+        /// Lấy thông tin cá nhân của user đang đăng nhập
+        /// </summary>
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> GetMe()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized("Vui lòng đăng nhập");
+
+            var roles = await _userManager.GetRolesAsync(user);
+
+            return Ok(new UserDetailDTO
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Surname = user.Surname,
+                Email = user.Email ?? "",
+                Role = roles.FirstOrDefault() ?? "Customer",
+                CreatedTicketsCount = _context.Tickets.Count(t => t.UserId == user.Id),
+                AssignedTicketsCount = _context.Tickets.Count(t => t.AssignedToId == user.Id)
             });
         }
     }
