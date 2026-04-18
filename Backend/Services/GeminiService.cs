@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using SmartHelpdesk.DTOs.Responses;
 
 namespace SmartHelpdesk.Services
 {
@@ -143,6 +144,109 @@ Ngu canh trich xuat tu du an Smart-Helpdesk:
 """;
 
             return await GenerateAnswerWithContextAsync(prompt);
+        }
+
+        public async Task<(List<string> Suggestions, string Source)> SuggestTicketInputAsync(
+            string description,
+            string? productName,
+            int maxSuggestions = 3)
+        {
+            var safeMaxSuggestions = Math.Clamp(maxSuggestions, 1, 5);
+            var normalizedDescription = (description ?? string.Empty).Trim();
+            var normalizedProductName = string.IsNullOrWhiteSpace(productName)
+                ? null
+                : productName.Trim();
+
+            var fallbackSuggestions = BuildFallbackInputSuggestions(
+                normalizedDescription,
+                normalizedProductName,
+                safeMaxSuggestions);
+
+            if (string.IsNullOrWhiteSpace(_apiKey) ||
+                _apiKey == "YOUR_GEMINI_API_KEY" ||
+                _apiKey == "your_gemini_api_key_here")
+            {
+                return (fallbackSuggestions, "fallback");
+            }
+
+            try
+            {
+                var aiSuggestions = await GenerateInputSuggestionsWithGeminiAsync(
+                    normalizedDescription,
+                    normalizedProductName,
+                    safeMaxSuggestions);
+
+                if (aiSuggestions.Count > 0)
+                {
+                    return (aiSuggestions, "gemini");
+                }
+            }
+            catch
+            {
+                // Fallback is handled below to keep the endpoint stable.
+            }
+
+            return (fallbackSuggestions, "fallback");
+        }
+
+        public async Task<(List<AgentReplySuggestionItem> Suggestions, string Source)> SuggestAgentRepliesAsync(
+            string ticketDescription,
+            string? productName,
+            string? category,
+            string? sentimentLabel,
+            float? sentimentScore,
+            IReadOnlyList<string> recentConversation,
+            IReadOnlyList<string> cannedResponses,
+            string? draftReply,
+            int maxSuggestions = 3)
+        {
+            var safeMaxSuggestions = Math.Clamp(maxSuggestions, 1, 5);
+            var fallback = BuildAgentFallbackReplySuggestions(
+                ticketDescription,
+                productName,
+                sentimentLabel,
+                recentConversation,
+                cannedResponses,
+                draftReply,
+                safeMaxSuggestions);
+
+            if (string.IsNullOrWhiteSpace(_apiKey) ||
+                _apiKey == "YOUR_GEMINI_API_KEY" ||
+                _apiKey == "your_gemini_api_key_here")
+            {
+                return (fallback, "fallback");
+            }
+
+            try
+            {
+                var aiTextSuggestions = await GenerateAgentReplySuggestionsWithGeminiAsync(
+                    ticketDescription,
+                    productName,
+                    category,
+                    sentimentLabel,
+                    sentimentScore,
+                    recentConversation,
+                    cannedResponses,
+                    draftReply,
+                    safeMaxSuggestions);
+
+                var merged = MergeReplySuggestions(
+                    aiTextSuggestions,
+                    cannedResponses,
+                    fallback.Select(x => x.Text).ToList(),
+                    safeMaxSuggestions);
+
+                if (merged.Count > 0)
+                {
+                    return (merged, "gemini-hybrid");
+                }
+            }
+            catch
+            {
+                // Return fallback suggestions to keep UX stable.
+            }
+
+            return (fallback, "fallback");
         }
 
         private void TryInitializeVectorDb()
@@ -607,6 +711,467 @@ Ngu canh trich xuat tu du an Smart-Helpdesk:
 
             reply = string.Empty;
             return false;
+        }
+
+        private async Task<List<string>> GenerateInputSuggestionsWithGeminiAsync(
+            string description,
+            string? productName,
+            int maxSuggestions)
+        {
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
+            var descriptionForPrompt = string.IsNullOrWhiteSpace(description)
+                ? "(nguoi dung chua nhap noi dung)"
+                : description;
+            var productForPrompt = string.IsNullOrWhiteSpace(productName)
+                ? "(khong ro san pham)"
+                : productName;
+
+            var prompt = $"""
+Soan {maxSuggestions} goi y mo ta ticket ho tro bang tieng Viet.
+
+Yeu cau:
+- Ngan gon, ro rang, lich su.
+- Co cau truc de nhan vien de xu ly.
+- Khong chen markdown, khong danh so, khong giai thich them.
+- Chi tra ve JSON array string.
+
+San pham: {productForPrompt}
+Noi dung hien tai: {descriptionForPrompt}
+""";
+
+            var requestBody = new
+            {
+                systemInstruction = new
+                {
+                    parts = new[]
+                    {
+                        new
+                        {
+                            text = "Ban la tro ly ho tro viet mo ta ticket. Tra ve dung dinh dang JSON array string, khong bo sung bat ky noi dung nao khac."
+                        }
+                    }
+                },
+                contents = new[]
+                {
+                    new { role = "user", parts = new[] { new { text = prompt } } }
+                },
+                generationConfig = new
+                {
+                    temperature = 0.4,
+                    topP = 0.95
+                }
+            };
+
+            var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(url, content);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new List<string>();
+            }
+
+            using var doc = JsonDocument.Parse(responseString);
+            if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+            {
+                return new List<string>();
+            }
+
+            var candidate = candidates[0];
+            if (!candidate.TryGetProperty("content", out var contentObj) ||
+                !contentObj.TryGetProperty("parts", out var parts) ||
+                parts.GetArrayLength() == 0)
+            {
+                return new List<string>();
+            }
+
+            var raw = new StringBuilder();
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (!part.TryGetProperty("text", out var textNode))
+                {
+                    continue;
+                }
+
+                var text = textNode.GetString();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                if (raw.Length > 0)
+                {
+                    raw.AppendLine();
+                }
+
+                raw.Append(text.Trim());
+            }
+
+            return ParseSuggestions(raw.ToString(), maxSuggestions);
+        }
+
+        private async Task<List<string>> GenerateAgentReplySuggestionsWithGeminiAsync(
+            string ticketDescription,
+            string? productName,
+            string? category,
+            string? sentimentLabel,
+            float? sentimentScore,
+            IReadOnlyList<string> recentConversation,
+            IReadOnlyList<string> cannedResponses,
+            string? draftReply,
+            int maxSuggestions)
+        {
+            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{_model}:generateContent?key={_apiKey}";
+
+            var conversationContext = recentConversation.Count == 0
+                ? "(chua co hoi thoai truoc do)"
+                : string.Join("\n", recentConversation.TakeLast(6));
+            var cannedContext = cannedResponses.Count == 0
+                ? "(khong co mau tra loi)"
+                : string.Join("\n", cannedResponses.Take(4).Select((x, i) => $"{i + 1}. {x}"));
+            var sentimentText = string.IsNullOrWhiteSpace(sentimentLabel)
+                ? "unknown"
+                : sentimentLabel;
+            var scoreText = sentimentScore.HasValue ? sentimentScore.Value.ToString("0.00", CultureInfo.InvariantCulture) : "n/a";
+            var productText = string.IsNullOrWhiteSpace(productName) ? "khong ro" : productName;
+            var categoryText = string.IsNullOrWhiteSpace(category) ? "khong ro" : category;
+            var draftText = string.IsNullOrWhiteSpace(draftReply) ? "(agent chua nhap ban nhap)" : draftReply.Trim();
+
+            var prompt = $"""
+Hay de xuat {maxSuggestions} cau tra loi cho Agent de gui cho khach hang.
+
+Yeu cau:
+- Ngan gon, lich su, thuc te, huong den xu ly.
+- Neu khach dang tieu cuc, cau dau tien can co dong cam.
+- Khong cam ket sai su that, khong dua thong tin ngoai ngữ canh.
+- Tra ve duy nhat JSON array string.
+
+Thong tin ticket:
+- Category: {categoryText}
+- Product: {productText}
+- Sentiment: {sentimentText}
+- SentimentScore: {scoreText}
+- Mo ta: {ticketDescription}
+
+Hoi thoai gan day:
+{conversationContext}
+
+Mau tra loi san co:
+{cannedContext}
+
+Ban nhap hien tai cua Agent:
+{draftText}
+""";
+
+            var requestBody = new
+            {
+                systemInstruction = new
+                {
+                    parts = new[]
+                    {
+                        new
+                        {
+                            text = "Ban la tro ly Agent Support cho helpdesk doanh nghiep. Luon su dung giong van chuyen nghiep, de hieu va huong hanh dong."
+                        }
+                    }
+                },
+                contents = new[]
+                {
+                    new { role = "user", parts = new[] { new { text = prompt } } }
+                },
+                generationConfig = new
+                {
+                    temperature = 0.5,
+                    topP = 0.95
+                }
+            };
+
+            var content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(url, content);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return new List<string>();
+            }
+
+            using var doc = JsonDocument.Parse(responseString);
+            if (!doc.RootElement.TryGetProperty("candidates", out var candidates) || candidates.GetArrayLength() == 0)
+            {
+                return new List<string>();
+            }
+
+            var candidate = candidates[0];
+            if (!candidate.TryGetProperty("content", out var contentObj) ||
+                !contentObj.TryGetProperty("parts", out var parts) ||
+                parts.GetArrayLength() == 0)
+            {
+                return new List<string>();
+            }
+
+            var raw = new StringBuilder();
+            foreach (var part in parts.EnumerateArray())
+            {
+                if (!part.TryGetProperty("text", out var textNode))
+                {
+                    continue;
+                }
+
+                var text = textNode.GetString();
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    continue;
+                }
+
+                if (raw.Length > 0)
+                {
+                    raw.AppendLine();
+                }
+
+                raw.Append(text.Trim());
+            }
+
+            return ParseSuggestions(raw.ToString(), maxSuggestions);
+        }
+
+        private static List<string> ParseSuggestions(string rawText, int maxSuggestions)
+        {
+            var cleaned = rawText.Trim();
+            if (cleaned.StartsWith("```", StringComparison.Ordinal))
+            {
+                cleaned = Regex.Replace(cleaned, "^```(?:json)?\\s*|\\s*```$", string.Empty, RegexOptions.Singleline);
+            }
+
+            var suggestions = new List<string>();
+
+            try
+            {
+                using var jsonDoc = JsonDocument.Parse(cleaned);
+                if (jsonDoc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in jsonDoc.RootElement.EnumerateArray())
+                    {
+                        if (item.ValueKind == JsonValueKind.String)
+                        {
+                            AddSuggestion(suggestions, item.GetString(), maxSuggestions);
+                            continue;
+                        }
+
+                        if (item.ValueKind == JsonValueKind.Object &&
+                            item.TryGetProperty("text", out var textNode) &&
+                            textNode.ValueKind == JsonValueKind.String)
+                        {
+                            AddSuggestion(suggestions, textNode.GetString(), maxSuggestions);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // If model returns non-JSON text, parse line-based as a fallback.
+            }
+
+            if (suggestions.Count == 0)
+            {
+                var lines = cleaned.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var line in lines)
+                {
+                    var normalized = Regex.Replace(line, "^[\\-\\*\\d\\.\\)\\s]+", string.Empty);
+                    AddSuggestion(suggestions, normalized, maxSuggestions);
+                    if (suggestions.Count >= maxSuggestions)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return suggestions;
+        }
+
+        private static List<string> BuildFallbackInputSuggestions(string description, string? productName, int maxSuggestions)
+        {
+            var productText = string.IsNullOrWhiteSpace(productName)
+                ? "he thong"
+                : productName.Trim();
+            var preview = BuildDescriptionPreview(description);
+
+            var templates = new List<string>
+            {
+                $"Toi dang gap loi khi su dung {productText}. Hien tuong: {preview}. Thoi diem xay ra: [nhap thoi gian]. Tan suat: [luon/thinh thoang].",
+                $"Moi truong su dung: [web/app, trinh duyet, he dieu hanh]. Van de tren {productText}: {preview}. Cac buoc tai hien: 1) ... 2) ... 3) ...",
+                $"Ket qua mong doi: [mo ta ngan gon]. Ket qua thuc te: {preview}. Thong bao loi (neu co): [copy nguyen van]."
+            };
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                templates = new List<string>
+                {
+                    $"Toi dang gap su co khi su dung {productText}. Van de bat dau tu [thoi gian] va anh huong den [chuc nang].",
+                    "Ung dung bi loi o buoc [mo ta buoc]. Toi da thu [cac cach da thu] nhung chua khac phuc duoc.",
+                    "Vui long ho tro kiem tra loi nay. Toi dinh kem anh/video va cac buoc tai hien de doi ngu de xu ly nhanh hon."
+                };
+            }
+
+            return templates
+                .Take(maxSuggestions)
+                .ToList();
+        }
+
+        private static List<AgentReplySuggestionItem> BuildAgentFallbackReplySuggestions(
+            string ticketDescription,
+            string? productName,
+            string? sentimentLabel,
+            IReadOnlyList<string> recentConversation,
+            IReadOnlyList<string> cannedResponses,
+            string? draftReply,
+            int maxSuggestions)
+        {
+            var productText = string.IsNullOrWhiteSpace(productName) ? "he thong" : productName.Trim();
+            var preview = BuildDescriptionPreview(ticketDescription);
+            var isNegative = string.Equals(sentimentLabel, "negative", StringComparison.OrdinalIgnoreCase);
+            var list = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(draftReply))
+            {
+                list.Add($"Cam on ban da cung cap thong tin. Minh da nhan ban mo ta: {BuildDescriptionPreview(draftReply)} Minh se kiem tra ngay va cap nhat trong it phut toi.");
+            }
+
+            if (isNegative)
+            {
+                list.Add("Mình rất xin lỗi vì sự bất tiện bạn đang gặp phải. Mình đã ưu tiên xử lý yêu cầu này và sẽ cập nhật tiến độ cho bạn ngay khi có kết quả.");
+            }
+
+            list.Add($"Mình đã ghi nhận sự cố trên {productText}. Để xử lý chính xác hơn, bạn vui lòng cho mình xin các bước thao tác ngay trước khi lỗi xảy ra và ảnh chụp màn hình nếu có.");
+            list.Add($"Cảm ơn bạn đã phản hồi. Với mô tả hiện tại: {preview}, mình đang phối hợp kiểm tra nguyên nhân và sẽ gửi hướng dẫn khắc phục cụ thể cho bạn ngay sau khi xác nhận.");
+
+            foreach (var canned in cannedResponses.Take(3))
+            {
+                list.Add(canned);
+            }
+
+            if (recentConversation.Count > 0)
+            {
+                list.Add("Mình đã xem toàn bộ lịch sử trao đổi trước đó. Mình sẽ tổng hợp lại các thông tin chính và gửi bạn phương án xử lý rõ ràng trong phản hồi kế tiếp.");
+            }
+
+            var results = new List<AgentReplySuggestionItem>();
+            foreach (var text in list)
+            {
+                AddReplySuggestion(results, text, "fallback", 0.72f, maxSuggestions);
+                if (results.Count >= maxSuggestions)
+                {
+                    break;
+                }
+            }
+
+            return results;
+        }
+
+        private static List<AgentReplySuggestionItem> MergeReplySuggestions(
+            IReadOnlyList<string> aiTexts,
+            IReadOnlyList<string> cannedTexts,
+            IReadOnlyList<string> fallbackTexts,
+            int maxSuggestions)
+        {
+            var results = new List<AgentReplySuggestionItem>();
+
+            foreach (var text in aiTexts)
+            {
+                var conf = 0.92f - (results.Count * 0.05f);
+                AddReplySuggestion(results, text, "gemini", Math.Clamp(conf, 0.7f, 0.95f), maxSuggestions);
+                if (results.Count >= maxSuggestions)
+                {
+                    return results;
+                }
+            }
+
+            foreach (var text in cannedTexts)
+            {
+                AddReplySuggestion(results, text, "canned", 0.78f, maxSuggestions);
+                if (results.Count >= maxSuggestions)
+                {
+                    return results;
+                }
+            }
+
+            foreach (var text in fallbackTexts)
+            {
+                AddReplySuggestion(results, text, "fallback", 0.72f, maxSuggestions);
+                if (results.Count >= maxSuggestions)
+                {
+                    return results;
+                }
+            }
+
+            return results;
+        }
+
+        private static string BuildDescriptionPreview(string description)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return "[mo ta nguyen nhan/loi]";
+            }
+
+            var cleaned = Regex.Replace(description.Trim(), "\\s+", " ");
+            if (cleaned.Length <= 120)
+            {
+                return cleaned;
+            }
+
+            return cleaned[..120] + "...";
+        }
+
+        private static void AddSuggestion(List<string> target, string? raw, int maxSuggestions)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || target.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            var cleaned = Regex.Replace(raw.Trim(), "\\s+", " ");
+            if (cleaned.Length < 12)
+            {
+                return;
+            }
+
+            if (target.Any(existing => string.Equals(existing, cleaned, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            target.Add(cleaned);
+        }
+
+        private static void AddReplySuggestion(
+            List<AgentReplySuggestionItem> target,
+            string? raw,
+            string source,
+            float confidence,
+            int maxSuggestions)
+        {
+            if (string.IsNullOrWhiteSpace(raw) || target.Count >= maxSuggestions)
+            {
+                return;
+            }
+
+            var cleaned = Regex.Replace(raw.Trim(), "\\s+", " ");
+            if (cleaned.Length < 12)
+            {
+                return;
+            }
+
+            if (target.Any(x => string.Equals(x.Text, cleaned, StringComparison.OrdinalIgnoreCase)))
+            {
+                return;
+            }
+
+            target.Add(new AgentReplySuggestionItem
+            {
+                Text = cleaned,
+                Confidence = confidence,
+                Source = source
+            });
         }
 
         private static string FormatReadableResponse(string raw)

@@ -12,5 +12,6 @@ namespace SmartHelpdesk.Data.Entities
         public List<ProductAgentAssignment> ProductAssignments { get; set; } = new List<ProductAgentAssignment>();
         public List<TicketFeedback> TicketFeedbacks { get; set; } = new List<TicketFeedback>();
         public List<UserNotification> Notifications { get; set; } = new List<UserNotification>();
+        public List<AiSuggestionLog> AiSuggestionLogs { get; set; } = new List<AiSuggestionLog>();
     }
 }

@@ -3,6 +3,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@using System.Net.Http.Json
 
 <div class="create-ticket-container">
     <div class="form-card">
@@ -38,6 +39,47 @@
                                placeholder="Vui lòng mô tả chi tiết vấn đề bạn đang gặp phải..." 
                                rows="6" />
                 <span class="char-count">@(ticketModel.Description?.Length ?? 0) / 2000</span>
+
+                <div class="ai-suggestion-panel">
+                    <button type="button"
+                            class="btn-ai-suggest"
+                            @onclick="GenerateInputSuggestions"
+                            disabled="@isGeneratingSuggestions">
+                        @if (isGeneratingSuggestions)
+                        {
+                            <span class="spinner ai-spinner"></span>
+                            <span>AI đang tạo gợi ý...</span>
+                        }
+                        else
+                        {
+                            <span>Gợi ý nội dung với AI</span>
+                        }
+                    </button>
+
+                    @if (!string.IsNullOrWhiteSpace(suggestionSource))
+                    {
+                        <span class="suggestion-source">Nguồn: @suggestionSource</span>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(suggestionErrorMessage))
+                    {
+                        <div class="suggestion-error">@suggestionErrorMessage</div>
+                    }
+
+                    @if (inputSuggestions.Count > 0)
+                    {
+                        <div class="suggestion-list">
+                            @for (var i = 0; i < inputSuggestions.Count; i++)
+                            {
+                                var suggestion = inputSuggestions[i];
+                                <button type="button" class="suggestion-item" @onclick="() => ApplySuggestion(suggestion)">
+                                    <span class="suggestion-index">@(i + 1).</span>
+                                    <span class="suggestion-text">@suggestion</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
 
             <!-- Product Name - Đưa xuống dưới, là input text tùy chọn -->
@@ -192,6 +234,10 @@
     private bool isSubmitting = false;
     private bool isSuccess = false;
     private string? errorMessage;
+    private bool isGeneratingSuggestions = false;
+    private string? suggestionErrorMessage;
+    private string? suggestionSource;
+    private List<string> inputSuggestions = new();
 
 
     private void HandleFileSelected(InputFileChangeEventArgs e)
@@ -304,9 +350,60 @@
         }
     }
 
+    private async Task GenerateInputSuggestions()
+    {
+        isGeneratingSuggestions = true;
+        suggestionErrorMessage = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/ai/suggest-input", new
+            {
+                Description = ticketModel.Description ?? string.Empty,
+                ProductName = ticketModel.ProductName,
+                MaxSuggestions = 3
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                suggestionErrorMessage = "Không lấy được gợi ý AI. Vui lòng thử lại.";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<InputSuggestionApiResponse>();
+            inputSuggestions = result?.Suggestions?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList() ?? new List<string>();
+            suggestionSource = string.IsNullOrWhiteSpace(result?.Source) ? null : result!.Source;
+
+            if (inputSuggestions.Count == 0)
+            {
+                suggestionErrorMessage = "AI chưa tạo được gợi ý phù hợp cho nội dung hiện tại.";
+            }
+        }
+        catch
+        {
+            suggestionErrorMessage = "Đã có lỗi khi gọi AI gợi ý nội dung.";
+        }
+        finally
+        {
+            isGeneratingSuggestions = false;
+        }
+    }
+
+    private void ApplySuggestion(string suggestion)
+    {
+        ticketModel.Description = suggestion;
+        suggestionErrorMessage = null;
+    }
+
     public class CreateTicketModel
     {
         public string? Description { get; set; }
         public string? ProductName { get; set; }
+    }
+
+    public class InputSuggestionApiResponse
+    {
+        public List<string>? Suggestions { get; set; }
+        public string? Source { get; set; }
     }
 }

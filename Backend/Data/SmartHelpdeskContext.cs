@@ -19,6 +19,7 @@ namespace SmartHelpdesk.Data
         public DbSet<ProductAgentAssignment> ProductAgentAssignments { get; set; }
         public DbSet<TicketFeedback> TicketFeedbacks { get; set; }
         public DbSet<UserNotification> UserNotifications { get; set; }
+        public DbSet<AiSuggestionLog> AiSuggestionLogs { get; set; }
         
         public SmartHelpdeskContext(DbContextOptions<SmartHelpdeskContext> opt)
             : base(opt) { }
@@ -45,6 +46,7 @@ namespace SmartHelpdesk.Data
             modelBuilder.ApplyConfiguration(new ProductAgentAssignmentConfiguration());
             modelBuilder.ApplyConfiguration(new TicketFeedbackConfiguration());
             modelBuilder.ApplyConfiguration(new UserNotificationConfiguration());
+            modelBuilder.ApplyConfiguration(new AiSuggestionLogConfiguration());
         }
     }
 }

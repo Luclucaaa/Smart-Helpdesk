@@ -28,6 +28,6 @@ namespace SmartHelpdesk.Interfaces
         public Task<AgentSmartQueueDTO> GetUnassignedTickets(AgentTicketFiltersDTO filters);
         
         // 🔥 Admin Dashboard Methods
-        public Task<AdminDashboardDTO> GetAdminDashboard();
+        public Task<AdminDashboardDTO> GetAdminDashboard(int days = 30, Guid? agentId = null);
     }
 }

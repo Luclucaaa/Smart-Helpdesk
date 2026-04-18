@@ -2,6 +2,7 @@
 @layout AdminLayout
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @using System.Net.Http.Json
 
 <PageTitle>Thống kê & Báo cáo - Admin Panel</PageTitle>
@@ -13,14 +14,32 @@
             <h1>Thống kê & Báo cáo</h1>
             <p>Phân tích dữ liệu và hiệu suất hệ thống</p>
         </div>
-        <div class="date-filter">
-            <label>Khoảng thời gian:</label>
-            <select @bind="dateRange" @bind:after="LoadAnalytics">
-                <option value="7">7 ngày qua</option>
-                <option value="30">30 ngày qua</option>
-                <option value="90">90 ngày qua</option>
-                <option value="365">1 năm qua</option>
-            </select>
+
+        <div class="header-controls">
+            <div class="date-filter">
+                <label>Khoảng thời gian:</label>
+                <select @bind="dateRange" @bind:after="LoadAnalytics">
+                    <option value="7">7 ngày qua</option>
+                    <option value="30">30 ngày qua</option>
+                    <option value="90">90 ngày qua</option>
+                    <option value="365">1 năm qua</option>
+                </select>
+            </div>
+
+            <div class="date-filter">
+                <label>Nhân viên:</label>
+                <select @bind="selectedAgentId" @bind:after="LoadAnalytics">
+                    <option value="">Tất cả nhân viên</option>
+                    @foreach (var agent in agentFilterOptions)
+                    {
+                        <option value="@agent.Id">@agent.Name @agent.Surname</option>
+                    }
+                </select>
+            </div>
+
+            <button type="button" class="btn-export" @onclick="ExportAiCsv">
+                Export AI CSV
+            </button>
         </div>
     </div>
 
@@ -90,6 +109,103 @@
                     <span class="overview-value">@satisfactionRate<small>%</small></span>
                     <span class="overview-label">Hài lòng khách hàng</span>
                     <span class="overview-change positive">Tích cực</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Analytics Section -->
+        <div class="ai-analytics-section">
+            <div class="section-header">
+                <h3>Báo cáo phân tích AI</h3>
+                <span class="section-subtitle">Hiệu quả gợi ý AI cho nhân viên hỗ trợ trong @dateRange ngày gần nhất</span>
+            </div>
+
+            <div class="ai-overview-grid">
+                <div class="ai-card generated">
+                    <span class="ai-card-label">Gợi ý AI đã sinh</span>
+                    <span class="ai-card-value">@aiSuggestionsGenerated</span>
+                </div>
+                <div class="ai-card accepted">
+                    <span class="ai-card-label">Gợi ý được chọn dùng</span>
+                    <span class="ai-card-value">@aiSuggestionsAccepted</span>
+                </div>
+                <div class="ai-card acceptance">
+                    <span class="ai-card-label">Tỷ lệ chấp nhận</span>
+                    <span class="ai-card-value">@aiAcceptanceRate<small>%</small></span>
+                </div>
+                <div class="ai-card helpful">
+                    <span class="ai-card-label">Tỷ lệ hữu ích</span>
+                    <span class="ai-card-value">@aiHelpfulnessRate<small>%</small></span>
+                </div>
+            </div>
+
+            <div class="ai-detail-grid">
+                <div class="ai-detail-card">
+                    <h4>Phân bổ theo nguồn gợi ý</h4>
+                    @if (aiSourceStats.Count == 0)
+                    {
+                        <p class="ai-empty">Chưa có dữ liệu nguồn gợi ý.</p>
+                    }
+                    else
+                    {
+                        @foreach (var source in aiSourceStats)
+                        {
+                            <div class="ai-source-row">
+                                <div class="ai-source-top">
+                                    <span class="source-name">@source.Source</span>
+                                    <span class="source-value">@source.Count</span>
+                                </div>
+                                <div class="source-track">
+                                    <div class="source-fill" style="width:@GetAiSourcePercentage(source.Count)%"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="ai-detail-card">
+                    <h4>Xu hướng AI theo ngày</h4>
+                    @if (aiSuggestionTrends.Count == 0)
+                    {
+                        <p class="ai-empty">Chưa có dữ liệu xu hướng AI.</p>
+                    }
+                    else
+                    {
+                        <div class="ai-trend-bars">
+                            @foreach (var trend in aiSuggestionTrends.TakeLast(14))
+                            {
+                                <div class="trend-item" title="@trend.Date.ToString("dd/MM"): @trend.GeneratedCount gợi ý, @trend.AcceptedCount được dùng">
+                                    <div class="trend-stack">
+                                        <div class="trend-generated" style="height:@GetTrendHeight(trend.GeneratedCount)%"></div>
+                                        <div class="trend-accepted" style="height:@GetTrendHeight(trend.AcceptedCount)%"></div>
+                                    </div>
+                                    <span class="trend-date">@trend.Date.ToString("dd/MM")</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="ai-detail-card weekly-card">
+                    <h4>So sánh tuần gần nhất</h4>
+                    <div class="weekly-row">
+                        <span>Acceptance tuần này</span>
+                        <strong>@currentWeekAcceptanceRate.ToString("F1")%</strong>
+                    </div>
+                    <div class="weekly-row">
+                        <span>Acceptance tuần trước</span>
+                        <strong>@previousWeekAcceptanceRate.ToString("F1")%</strong>
+                    </div>
+                    <div class="weekly-delta @(weeklyAcceptanceDelta >= 0 ? "positive" : "negative")">
+                        @if (weeklyAcceptanceDelta >= 0)
+                        {
+                            <span>▲ +@weeklyAcceptanceDelta.ToString("F1")% so với tuần trước</span>
+                        }
+                        else
+                        {
+                            <span>▼ @weeklyAcceptanceDelta.ToString("F1")% so với tuần trước</span>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -351,6 +467,7 @@
 @code {
     private bool isLoading = true;
     private int dateRange = 30;
+    private string selectedAgentId = string.Empty;
 
     // Overview stats
     private int totalTickets = 0;
@@ -376,12 +493,42 @@
     private int mediumPriorityCount = 0;
     private int lowPriorityCount = 0;
 
+    // AI analytics
+    private int aiSuggestionsGenerated = 0;
+    private int aiSuggestionsAccepted = 0;
+    private double aiAcceptanceRate = 0;
+    private double aiHelpfulnessRate = 0;
+    private double currentWeekAcceptanceRate = 0;
+    private double previousWeekAcceptanceRate = 0;
+    private double weeklyAcceptanceDelta = 0;
+    private List<AiSourceStat> aiSourceStats = new();
+    private List<AiSuggestionTrend> aiSuggestionTrends = new();
+    private List<AgentFilterOption> agentFilterOptions = new();
+
     private List<ProductStat> productStats = new();
     private List<AgentStat> topAgents = new();
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadAgentFilterOptions();
         await LoadAnalytics();
+    }
+
+    private async Task LoadAgentFilterOptions()
+    {
+        try
+        {
+            var agents = await Http.GetFromJsonAsync<List<AgentFilterOption>>("api/Users/agents") ?? new List<AgentFilterOption>();
+            agentFilterOptions = agents
+                .OrderBy(x => x.Name)
+                .ThenBy(x => x.Surname)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading agent filter options: {ex.Message}");
+            agentFilterOptions = new List<AgentFilterOption>();
+        }
     }
 
     private async Task LoadAnalytics()
@@ -389,72 +536,103 @@
         isLoading = true;
         try
         {
-            // Load tickets data
-            var ticketsResponse = await Http.GetFromJsonAsync<TicketsResponse>("api/Tickets/GetTickets?Take=1000&Skip=0");
-            if (ticketsResponse?.Tickets != null)
+            var query = string.IsNullOrWhiteSpace(selectedAgentId)
+                ? $"api/Tickets/AdminDashboard?days={dateRange}"
+                : $"api/Tickets/AdminDashboard?days={dateRange}&agentId={selectedAgentId}";
+
+            var dashboard = await Http.GetFromJsonAsync<AdminDashboardResponse>(query);
+            if (dashboard == null)
             {
-                var tickets = ticketsResponse.Tickets;
-                var cutoffDate = DateTimeOffset.Now.AddDays(-dateRange);
-                var filteredTickets = tickets.Where(t => t.CreatedAt >= cutoffDate).ToList();
-
-                totalTickets = (int)ticketsResponse.Total;
-                newTicketsThisPeriod = filteredTickets.Count;
-
-                // Status counts
-                openCount = tickets.Count(t => t.Status == 0);
-                inProgressCount = tickets.Count(t => t.Status == 1);
-                closedCount = tickets.Count(t => t.Status == 2);
-                resolvedTickets = closedCount;
-
-                // Resolution rate
-                resolutionRate = totalTickets > 0 ? Math.Round((double)closedCount / totalTickets * 100, 1) : 0;
-
-                // Category counts
-                bugCount = tickets.Count(t => t.Category == 0);
-                featureCount = tickets.Count(t => t.Category == 1);
-                supportCount = tickets.Count(t => t.Category == 2);
-                saleCount = tickets.Count(t => t.Category == 3);
-
-                // Priority counts
-                highPriorityCount = tickets.Count(t => t.Priority == 2);
-                mediumPriorityCount = tickets.Count(t => t.Priority == 1);
-                lowPriorityCount = tickets.Count(t => t.Priority == 0);
-
-                // Calculate avg response time (mock for now)
-                avgResponseTime = 18.5;
-                
-                // Calculate satisfaction rate based on sentiment
-                var positiveCount = tickets.Count(t => t.SentimentScore >= 0.4);
-                satisfactionRate = tickets.Count > 0 ? Math.Round((double)positiveCount / tickets.Count * 100, 1) : 0;
-
-                // Group by product
-                productStats = tickets
-                    .GroupBy(t => t.ProductName)
-                    .Select(g => new ProductStat { Name = g.Key ?? "Không xác định", TicketCount = g.Count() })
-                    .OrderByDescending(p => p.TicketCount)
-                    .Take(6)
-                    .ToList();
+                return;
             }
 
-            // Load agents data
-            var usersResponse = await Http.GetFromJsonAsync<List<UserDTO>>("api/users");
-            if (usersResponse != null)
+            totalTickets = dashboard.TotalTickets;
+            openCount = dashboard.OpenTickets;
+            inProgressCount = dashboard.InProgressTickets;
+            closedCount = dashboard.ClosedTickets;
+            resolvedTickets = dashboard.ClosedTickets;
+
+            newTicketsThisPeriod = dashboard.TicketTrends?.Sum(x => x.NewTickets) ?? 0;
+            resolutionRate = totalTickets > 0 ? Math.Round((double)resolvedTickets / totalTickets * 100, 1) : 0;
+
+            bugCount = dashboard.BugCount;
+            featureCount = dashboard.FeatureCount;
+            supportCount = dashboard.SupportCount;
+            saleCount = dashboard.SaleCount;
+
+            highPriorityCount = dashboard.HighPriorityCount;
+            mediumPriorityCount = dashboard.MediumPriorityCount;
+            lowPriorityCount = dashboard.LowPriorityCount;
+
+            var agentResolutionTimes = dashboard.AgentStats?
+                .Select(x => x.AverageResolutionTimeHours)
+                .Where(x => x > 0)
+                .ToList() ?? new List<float>();
+            avgResponseTime = agentResolutionTimes.Count > 0
+                ? Math.Round(agentResolutionTimes.Average(), 1)
+                : 0;
+
+            if (dashboard.AverageCsatRating > 0)
             {
-                topAgents = usersResponse
-                    .Where(u => u.Role == "Agent")
-                    .Select(u => new AgentStat
-                    {
-                        Name = u.Name,
-                        Surname = u.Surname,
-                        Email = u.Email,
-                        ResolvedCount = u.AssignedTicketsCount,
-                        PendingCount = 0,
-                        Performance = u.AssignedTicketsCount > 0 ? Math.Min(100, u.AssignedTicketsCount * 10) : 0
-                    })
-                    .OrderByDescending(a => a.ResolvedCount)
-                    .Take(5)
-                    .ToList();
+                satisfactionRate = Math.Round(dashboard.AverageCsatRating * 20.0, 1);
             }
+            else
+            {
+                var sentimentTotal = dashboard.PositiveSentimentCount + dashboard.NegativeSentimentCount + dashboard.NeutralSentimentCount;
+                satisfactionRate = sentimentTotal > 0
+                    ? Math.Round((double)dashboard.PositiveSentimentCount / sentimentTotal * 100, 1)
+                    : 0;
+            }
+
+            productStats = (dashboard.ProductStats ?? new List<ProductStatData>())
+                .Select(p => new ProductStat
+                {
+                    Name = p.ProductName,
+                    TicketCount = p.TotalTickets
+                })
+                .OrderByDescending(p => p.TicketCount)
+                .Take(6)
+                .ToList();
+
+            topAgents = (dashboard.AgentStats ?? new List<AgentStatData>())
+                .Select(a => new AgentStat
+                {
+                    Name = ExtractFirstName(a.AgentName),
+                    Surname = ExtractLastName(a.AgentName),
+                    Email = string.Empty,
+                    ResolvedCount = a.ClosedTickets,
+                    PendingCount = a.OpenTickets,
+                    Performance = a.AssignedTickets > 0
+                        ? (int)Math.Round((double)a.ClosedTickets / a.AssignedTickets * 100)
+                        : 0
+                })
+                .OrderByDescending(a => a.ResolvedCount)
+                .Take(6)
+                .ToList();
+
+            aiSuggestionsGenerated = dashboard.AiSuggestionsGenerated;
+            aiSuggestionsAccepted = dashboard.AiSuggestionsAccepted;
+            aiAcceptanceRate = dashboard.AiAcceptanceRate;
+            aiHelpfulnessRate = dashboard.AiHelpfulnessRate;
+
+            aiSourceStats = (dashboard.AiSourceStats ?? new List<AiSourceStatData>())
+                .Select(x => new AiSourceStat
+                {
+                    Source = x.Source,
+                    Count = x.Count
+                })
+                .ToList();
+
+            aiSuggestionTrends = (dashboard.AiSuggestionTrends ?? new List<AiSuggestionTrendData>())
+                .Select(x => new AiSuggestionTrend
+                {
+                    Date = x.Date,
+                    GeneratedCount = x.GeneratedCount,
+                    AcceptedCount = x.AcceptedCount
+                })
+                .ToList();
+
+            CalculateWeeklyAcceptanceComparison();
         }
         catch (Exception ex)
         {
@@ -470,6 +648,78 @@
     {
         var colors = new[] { "#e94560", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899" };
         return colors[index % colors.Length];
+    }
+
+    private double GetAiSourcePercentage(int count)
+    {
+        var max = aiSourceStats.Count > 0 ? aiSourceStats.Max(x => x.Count) : 0;
+        return max > 0 ? Math.Round((double)count / max * 100, 1) : 0;
+    }
+
+    private double GetTrendHeight(int count)
+    {
+        var max = aiSuggestionTrends.Count > 0 ? aiSuggestionTrends.Max(x => x.GeneratedCount) : 0;
+        return max > 0 ? Math.Round((double)count / max * 100, 1) : 0;
+    }
+
+    private void CalculateWeeklyAcceptanceComparison()
+    {
+        var ordered = aiSuggestionTrends.OrderBy(x => x.Date).ToList();
+
+        var currentStartIndex = Math.Max(0, ordered.Count - 7);
+        var previousStartIndex = Math.Max(0, currentStartIndex - 7);
+
+        var currentWeek = ordered.Skip(currentStartIndex).Take(ordered.Count - currentStartIndex).ToList();
+        var previousWeek = ordered.Skip(previousStartIndex).Take(currentStartIndex - previousStartIndex).ToList();
+
+        var currentGenerated = currentWeek.Sum(x => x.GeneratedCount);
+        var currentAccepted = currentWeek.Sum(x => x.AcceptedCount);
+        var previousGenerated = previousWeek.Sum(x => x.GeneratedCount);
+        var previousAccepted = previousWeek.Sum(x => x.AcceptedCount);
+
+        currentWeekAcceptanceRate = currentGenerated > 0
+            ? Math.Round((double)currentAccepted / currentGenerated * 100, 1)
+            : 0;
+        previousWeekAcceptanceRate = previousGenerated > 0
+            ? Math.Round((double)previousAccepted / previousGenerated * 100, 1)
+            : 0;
+
+        weeklyAcceptanceDelta = Math.Round(currentWeekAcceptanceRate - previousWeekAcceptanceRate, 1);
+    }
+
+    private async Task ExportAiCsv()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Metric,Value");
+        sb.AppendLine($"DateRangeDays,{dateRange}");
+        sb.AppendLine($"AgentFilter,{(string.IsNullOrWhiteSpace(selectedAgentId) ? "all" : selectedAgentId)}");
+        sb.AppendLine($"AiSuggestionsGenerated,{aiSuggestionsGenerated}");
+        sb.AppendLine($"AiSuggestionsAccepted,{aiSuggestionsAccepted}");
+        sb.AppendLine($"AiAcceptanceRate,{aiAcceptanceRate:F2}");
+        sb.AppendLine($"AiHelpfulnessRate,{aiHelpfulnessRate:F2}");
+        sb.AppendLine($"CurrentWeekAcceptanceRate,{currentWeekAcceptanceRate:F2}");
+        sb.AppendLine($"PreviousWeekAcceptanceRate,{previousWeekAcceptanceRate:F2}");
+        sb.AppendLine($"WeeklyAcceptanceDelta,{weeklyAcceptanceDelta:F2}");
+        sb.AppendLine();
+
+        sb.AppendLine("Source,Count");
+        foreach (var row in aiSourceStats)
+        {
+            sb.AppendLine($"\"{row.Source.Replace("\"", "\"\"")}\",{row.Count}");
+        }
+
+        sb.AppendLine();
+        sb.AppendLine("Date,Generated,Accepted");
+        foreach (var trend in aiSuggestionTrends.OrderBy(x => x.Date))
+        {
+            sb.AppendLine($"{trend.Date:yyyy-MM-dd},{trend.GeneratedCount},{trend.AcceptedCount}");
+        }
+
+        var fileName = $"ai-analytics-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+        var csvDataUrl = "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
+        var downloadScript = $"(function(){{var a=document.createElement('a');a.href='{csvDataUrl}';a.download='{fileName}';document.body.appendChild(a);a.click();a.remove();}})();";
+        await JS.InvokeVoidAsync("eval", downloadScript);
+        Console.WriteLine($"AI analytics exported: {fileName}");
     }
 
     private double GetPercentage(int count)
@@ -497,34 +747,111 @@
         return first + last;
     }
 
+    private static string ExtractFirstName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return "Agent";
+
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[0] : "Agent";
+    }
+
+    private static string ExtractLastName(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return string.Empty;
+
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 1 ? string.Join(" ", parts.Skip(1)) : string.Empty;
+    }
+
     // DTOs
-    public class TicketsResponse
+    public class AdminDashboardResponse
     {
-        public int Take { get; set; }
-        public int Skip { get; set; }
-        public long Total { get; set; }
-        public List<TicketDTO> Tickets { get; set; } = new();
+        public int TotalTickets { get; set; }
+        public int OpenTickets { get; set; }
+        public int InProgressTickets { get; set; }
+        public int ClosedTickets { get; set; }
+
+        public int PositiveSentimentCount { get; set; }
+        public int NegativeSentimentCount { get; set; }
+        public int NeutralSentimentCount { get; set; }
+
+        public int HighPriorityCount { get; set; }
+        public int MediumPriorityCount { get; set; }
+        public int LowPriorityCount { get; set; }
+
+        public int BugCount { get; set; }
+        public int FeatureCount { get; set; }
+        public int SupportCount { get; set; }
+        public int SaleCount { get; set; }
+
+        public float AverageCsatRating { get; set; }
+
+        public int AiSuggestionsGenerated { get; set; }
+        public int AiSuggestionsAccepted { get; set; }
+        public float AiAcceptanceRate { get; set; }
+        public float AiHelpfulnessRate { get; set; }
+
+        public List<ProductStatData>? ProductStats { get; set; }
+        public List<AgentStatData>? AgentStats { get; set; }
+        public List<TicketTrendData>? TicketTrends { get; set; }
+        public List<AiSourceStatData>? AiSourceStats { get; set; }
+        public List<AiSuggestionTrendData>? AiSuggestionTrends { get; set; }
     }
 
-    public class TicketDTO
+    public class ProductStatData
     {
-        public Guid Id { get; set; }
-        public int Status { get; set; }
-        public int Priority { get; set; }
-        public int? Category { get; set; }
-        public string? ProductName { get; set; }
-        public float? SentimentScore { get; set; }
-        public DateTimeOffset CreatedAt { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public int TotalTickets { get; set; }
     }
 
-    public class UserDTO
+    public class AgentStatData
+    {
+        public string AgentName { get; set; } = string.Empty;
+        public int AssignedTickets { get; set; }
+        public int ClosedTickets { get; set; }
+        public int OpenTickets { get; set; }
+        public float AverageResolutionTimeHours { get; set; }
+    }
+
+    public class TicketTrendData
+    {
+        public DateTime Date { get; set; }
+        public int NewTickets { get; set; }
+    }
+
+    public class AiSourceStatData
+    {
+        public string Source { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public class AiSuggestionTrendData
+    {
+        public DateTime Date { get; set; }
+        public int GeneratedCount { get; set; }
+        public int AcceptedCount { get; set; }
+    }
+
+    public class AiSourceStat
+    {
+        public string Source { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public class AiSuggestionTrend
+    {
+        public DateTime Date { get; set; }
+        public int GeneratedCount { get; set; }
+        public int AcceptedCount { get; set; }
+    }
+
+    public class AgentFilterOption
     {
         public Guid Id { get; set; }
-        public string Name { get; set; } = "";
-        public string Surname { get; set; } = "";
-        public string Email { get; set; } = "";
-        public string Role { get; set; } = "";
-        public int AssignedTicketsCount { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Surname { get; set; } = string.Empty;
     }
 
     public class ProductStat

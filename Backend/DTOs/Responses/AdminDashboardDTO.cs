@@ -41,6 +41,16 @@ namespace SmartHelpdesk.DTOs.Responses
         public int SlaBreachedTickets { get; set; }
         public int FeedbackCount { get; set; }
         public float AverageCsatRating { get; set; }
+
+        // AI Assist analytics
+        public int AiSuggestionsGenerated { get; set; }
+        public int AiSuggestionsAccepted { get; set; }
+        public int AiSuggestionsHelpful { get; set; }
+        public int AiSuggestionsNotHelpful { get; set; }
+        public float AiAcceptanceRate { get; set; }
+        public float AiHelpfulnessRate { get; set; }
+        public List<AiSourceStatDTO> AiSourceStats { get; set; } = new();
+        public List<AiSuggestionTrendDTO> AiSuggestionTrends { get; set; } = new();
     }
 
     public class ProductStatDTO
@@ -71,5 +81,18 @@ namespace SmartHelpdesk.DTOs.Responses
         public int NewTickets { get; set; }
         public int ClosedTickets { get; set; }
         public int TotalOpen { get; set; }
+    }
+
+    public class AiSourceStatDTO
+    {
+        public string Source { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public class AiSuggestionTrendDTO
+    {
+        public DateTime Date { get; set; }
+        public int GeneratedCount { get; set; }
+        public int AcceptedCount { get; set; }
     }
 }
