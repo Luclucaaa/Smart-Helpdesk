@@ -79,6 +79,7 @@ builder.Services.AddScoped<ICommentsService, CommentsService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICannedResponsesService, CannedResponsesService>();
+builder.Services.AddScoped<IAiSuggestionLogService, AiSuggestionLogService>();
 
 // AI Services
 builder.Services.AddSingleton<ISentimentService, SentimentService>();

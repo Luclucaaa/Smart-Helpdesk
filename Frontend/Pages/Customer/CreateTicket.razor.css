@@ -130,6 +130,91 @@
     color: #9ca3af;
 }
 
+.ai-suggestion-panel {
+    margin-top: 0.35rem;
+    padding: 0.9rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #f8fafc;
+}
+
+.btn-ai-suggest {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #c7d2fe;
+    background: #eef2ff;
+    color: #3730a3;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-ai-suggest:hover:not(:disabled) {
+    background: #e0e7ff;
+}
+
+.btn-ai-suggest:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.ai-spinner {
+    width: 14px;
+    height: 14px;
+}
+
+.suggestion-source {
+    display: inline-block;
+    margin-left: 10px;
+    color: #6b7280;
+    font-size: 0.8rem;
+}
+
+.suggestion-error {
+    margin-top: 8px;
+    color: #b91c1c;
+    font-size: 0.85rem;
+}
+
+.suggestion-list {
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.suggestion-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fff;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.suggestion-item:hover {
+    border-color: #a5b4fc;
+    background: #eef2ff;
+}
+
+.suggestion-index {
+    color: #4338ca;
+    font-weight: 700;
+}
+
+.suggestion-text {
+    color: #1f2937;
+    line-height: 1.45;
+}
+
 .validation-message {
     color: #dc2626;
     font-size: 0.85rem;

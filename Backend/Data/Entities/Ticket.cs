@@ -32,5 +32,6 @@ namespace SmartHelpdesk.Data.Entities
         public Product? Product { get; set; }
         public List<Comment> Comments { get; set; } = new List<Comment>();
         public TicketFeedback? Feedback { get; set; }
+        public List<AiSuggestionLog> AiSuggestionLogs { get; set; } = new List<AiSuggestionLog>();
     }
 }

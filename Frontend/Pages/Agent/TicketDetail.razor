@@ -187,6 +187,57 @@
                     @if (ticket.Status != 2)
                     {
                         <div class="chat-input-area">
+                            <div class="agent-ai-tools">
+                                <button class="btn-ai-reply" @onclick="GenerateReplySuggestions" disabled="@isGeneratingReplySuggestions">
+                                    @if (isGeneratingReplySuggestions)
+                                    {
+                                        <span class="spinner-small"></span>
+                                        <span>AI đang tạo gợi ý...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>AI gợi ý phản hồi</span>
+                                    }
+                                </button>
+
+                                @if (!string.IsNullOrWhiteSpace(replySuggestionsSource))
+                                {
+                                    <span class="ai-source">Nguồn: @replySuggestionsSource</span>
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(replySuggestionError))
+                            {
+                                <div class="ai-error">@replySuggestionError</div>
+                            }
+
+                            @if (replySuggestions.Count > 0)
+                            {
+                                <div class="ai-suggestion-list">
+                                    @foreach (var suggestion in replySuggestions)
+                                    {
+                                        <div class="ai-suggestion-item">
+                                            <button type="button" class="ai-suggestion-select" @onclick='() => ApplyAiSuggestion(suggestion)'>
+                                                <span class="ai-suggestion-text">@suggestion.Text</span>
+                                                <span class="ai-meta">@suggestion.Source • @suggestion.Confidence.ToString("P0")</span>
+                                            </button>
+                                            <div class="ai-actions">
+                                                <button type="button"
+                                                        class="btn-ai-feedback @(GetFeedbackClass(suggestion.SuggestionLogId, true))"
+                                                        @onclick='() => SendSuggestionFeedback(suggestion, true)'>
+                                                    Hữu ích
+                                                </button>
+                                                <button type="button"
+                                                        class="btn-ai-feedback @(GetFeedbackClass(suggestion.SuggestionLogId, false))"
+                                                        @onclick='() => SendSuggestionFeedback(suggestion, false)'>
+                                                    Chưa hữu ích
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
                             <textarea @bind="newComment" 
                                       placeholder="Nhập phản hồi cho khách hàng..." 
                                       rows="3"></textarea>
@@ -435,6 +486,11 @@
     private Guid? currentUserId = null;
     private bool isLoadingCanned = false;
     private List<CannedResponseOption> cannedResponses = new();
+    private bool isGeneratingReplySuggestions = false;
+    private string? replySuggestionError;
+    private string? replySuggestionsSource;
+    private List<AgentReplySuggestionItem> replySuggestions = new();
+    private Dictionary<Guid, bool> suggestionFeedbackStates = new();
     private CancellationTokenSource? commentsPollingCts;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -650,6 +706,105 @@
         return defaults;
     }
 
+    private async Task GenerateReplySuggestions()
+    {
+        if (ticket == null)
+        {
+            return;
+        }
+
+        isGeneratingReplySuggestions = true;
+        replySuggestionError = null;
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/ai/suggest-reply", new
+            {
+                TicketId = Id,
+                DraftReply = newComment,
+                MaxSuggestions = 3
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                replySuggestionError = "Không lấy được gợi ý AI lúc này. Vui lòng thử lại.";
+                return;
+            }
+
+            var data = await response.Content.ReadFromJsonAsync<AgentReplySuggestionApiResponse>();
+            replySuggestionsSource = data?.Source;
+            replySuggestions = data?.Suggestions?
+                .Where(x => !string.IsNullOrWhiteSpace(x.Text))
+                .ToList() ?? new List<AgentReplySuggestionItem>();
+            suggestionFeedbackStates = new Dictionary<Guid, bool>();
+
+            if (replySuggestions.Count == 0)
+            {
+                replySuggestionError = "AI chưa tạo được gợi ý phù hợp cho ticket này.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating reply suggestions: {ex.Message}");
+            replySuggestionError = "Đã có lỗi khi tạo gợi ý phản hồi.";
+        }
+        finally
+        {
+            isGeneratingReplySuggestions = false;
+        }
+    }
+
+    private async Task ApplyAiSuggestion(AgentReplySuggestionItem suggestion)
+    {
+        newComment = suggestion.Text;
+
+        if (suggestion.SuggestionLogId != Guid.Empty)
+        {
+            try
+            {
+                await Http.PostAsync($"api/ai/suggest-reply/{suggestion.SuggestionLogId}/accept", null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error marking suggestion accepted: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task SendSuggestionFeedback(AgentReplySuggestionItem suggestion, bool isHelpful)
+    {
+        if (suggestion.SuggestionLogId == Guid.Empty)
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync(
+                $"api/ai/suggest-reply/{suggestion.SuggestionLogId}/feedback",
+                new { IsHelpful = isHelpful, Note = (string?)null });
+
+            if (response.IsSuccessStatusCode)
+            {
+                suggestionFeedbackStates[suggestion.SuggestionLogId] = isHelpful;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error sending suggestion feedback: {ex.Message}");
+        }
+    }
+
+    private string GetFeedbackClass(Guid suggestionLogId, bool expected)
+    {
+        if (suggestionFeedbackStates.TryGetValue(suggestionLogId, out var actual) && actual == expected)
+        {
+            return "active";
+        }
+
+        return string.Empty;
+    }
+
     private async Task SendComment()
     {
         if (string.IsNullOrWhiteSpace(newComment) || ticket == null) return;
@@ -676,6 +831,9 @@
                 // Reload comments sau khi thêm thành công
                 await LoadTicketDetail();
                 newComment = "";
+                replySuggestions.Clear();
+                replySuggestionsSource = null;
+                suggestionFeedbackStates.Clear();
                 await ShowActionNotification("✅ Đã gửi phản hồi cho khách hàng.", true);
             }
             else
@@ -1046,5 +1204,20 @@
         public string Title { get; set; } = string.Empty;
         public string Text { get; set; } = string.Empty;
         public int? Category { get; set; }
+    }
+
+    public class AgentReplySuggestionApiResponse
+    {
+        public Guid TicketId { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public List<AgentReplySuggestionItem> Suggestions { get; set; } = new();
+    }
+
+    public class AgentReplySuggestionItem
+    {
+        public Guid SuggestionLogId { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public float Confidence { get; set; }
+        public string Source { get; set; } = string.Empty;
     }
 }

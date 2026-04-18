@@ -866,9 +866,12 @@ namespace SmartHelpdesk.Services
         }
 
         // ✅ ADMIN DASHBOARD: Tổng hợp tất cả metrics
-        public async Task<AdminDashboardDTO> GetAdminDashboard()
+        public async Task<AdminDashboardDTO> GetAdminDashboard(int days = 30, Guid? agentId = null)
         {
             await ProcessSlaBreachesAsync();
+
+            var safeDays = Math.Clamp(days, 1, 365);
+            var periodStart = DateTimeOffset.UtcNow.Date.AddDays(-safeDays + 1);
 
             var allTickets = await _context.Tickets
                 .Include(t => t.Product)
@@ -877,61 +880,123 @@ namespace SmartHelpdesk.Services
                 .Include(t => t.Feedback)
                 .ToListAsync();
 
+            var periodTickets = allTickets
+                .Where(t => t.CreatedAt >= periodStart)
+                .ToList();
+
+            if (agentId.HasValue)
+            {
+                periodTickets = periodTickets
+                    .Where(t => t.AssignedToId == agentId.Value)
+                    .ToList();
+            }
+
             // Basic stats
             var dashboard = new AdminDashboardDTO
             {
-                TotalTickets = allTickets.Count,
-                OpenTickets = allTickets.Count(t => t.Status == Status.Open),
-                InProgressTickets = allTickets.Count(t => t.Status == Status.InProgress),
-                ClosedTickets = allTickets.Count(t => t.Status == Status.Closed),
-                SlaBreachedTickets = allTickets.Count(t => t.IsSlaBreached),
+                TotalTickets = periodTickets.Count,
+                OpenTickets = periodTickets.Count(t => t.Status == Status.Open),
+                InProgressTickets = periodTickets.Count(t => t.Status == Status.InProgress),
+                ClosedTickets = periodTickets.Count(t => t.Status == Status.Closed),
+                SlaBreachedTickets = periodTickets.Count(t => t.IsSlaBreached),
 
                 // Sentiment stats
-                PositiveSentimentCount = allTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "positive"),
-                NegativeSentimentCount = allTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "negative"),
-                NeutralSentimentCount = allTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "neutral"),
-                AverageSentimentScore = allTickets.Count > 0 
-                    ? (float)allTickets.Average(t => t.SentimentScore ?? 0.5f)
+                PositiveSentimentCount = periodTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "positive"),
+                NegativeSentimentCount = periodTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "negative"),
+                NeutralSentimentCount = periodTickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "neutral"),
+                AverageSentimentScore = periodTickets.Count > 0 
+                    ? (float)periodTickets.Average(t => t.SentimentScore ?? 0.5f)
                     : 0.5f,
 
                 // Priority stats
-                HighPriorityCount = allTickets.Count(t => t.Priority == Priority.High),
-                MediumPriorityCount = allTickets.Count(t => t.Priority == Priority.Medium),
-                LowPriorityCount = allTickets.Count(t => t.Priority == Priority.Low),
+                HighPriorityCount = periodTickets.Count(t => t.Priority == Priority.High),
+                MediumPriorityCount = periodTickets.Count(t => t.Priority == Priority.Medium),
+                LowPriorityCount = periodTickets.Count(t => t.Priority == Priority.Low),
 
                 // Category stats
-                BugCount = allTickets.Count(t => t.Category == Category.Bug),
-                FeatureCount = allTickets.Count(t => t.Category == Category.Feature),
-                SupportCount = allTickets.Count(t => t.Category == Category.Support),
-                SaleCount = allTickets.Count(t => t.Category == Category.Sale),
-                FeedbackCount = allTickets.Count(t => t.Feedback != null),
-                AverageCsatRating = allTickets.Any(t => t.Feedback != null)
-                    ? (float)allTickets.Where(t => t.Feedback != null).Average(t => t.Feedback!.Rating)
+                BugCount = periodTickets.Count(t => t.Category == Category.Bug),
+                FeatureCount = periodTickets.Count(t => t.Category == Category.Feature),
+                SupportCount = periodTickets.Count(t => t.Category == Category.Support),
+                SaleCount = periodTickets.Count(t => t.Category == Category.Sale),
+                FeedbackCount = periodTickets.Count(t => t.Feedback != null),
+                AverageCsatRating = periodTickets.Any(t => t.Feedback != null)
+                    ? (float)periodTickets.Where(t => t.Feedback != null).Average(t => t.Feedback!.Rating)
                     : 0
             };
 
-            // Product stats
-            var products = await _context.Products
-                .Include(p => p.Tickets)
+            var aiLogs = await _context.AiSuggestionLogs
+                .AsNoTracking()
+                .Where(x => x.CreatedAt >= periodStart)
                 .ToListAsync();
 
-            dashboard.ProductStats = products.Select(p => new ProductStatDTO
+            if (agentId.HasValue)
             {
-                ProductId = p.Id,
-                ProductName = p.Name,
-                TotalTickets = p.Tickets.Count,
-                OpenTickets = p.Tickets.Count(t => t.Status == Status.Open),
-                PositiveSentimentPercentage = p.Tickets.Count > 0
-                    ? (float)p.Tickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "positive") / p.Tickets.Count * 100
-                    : 0,
-                NegativeSentimentPercentage = p.Tickets.Count > 0
-                    ? (float)p.Tickets.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "negative") / p.Tickets.Count * 100
-                    : 0
-            }).ToList();
+                aiLogs = aiLogs
+                    .Where(x => x.AgentId == agentId.Value)
+                    .ToList();
+            }
+
+            var feedbackLogs = aiLogs.Where(x => x.IsHelpful.HasValue).ToList();
+
+            dashboard.AiSuggestionsGenerated = aiLogs.Count;
+            dashboard.AiSuggestionsAccepted = aiLogs.Count(x => x.IsAccepted);
+            dashboard.AiSuggestionsHelpful = aiLogs.Count(x => x.IsHelpful == true);
+            dashboard.AiSuggestionsNotHelpful = aiLogs.Count(x => x.IsHelpful == false);
+            dashboard.AiAcceptanceRate = dashboard.AiSuggestionsGenerated > 0
+                ? (float)Math.Round((double)dashboard.AiSuggestionsAccepted / dashboard.AiSuggestionsGenerated * 100, 2)
+                : 0;
+            dashboard.AiHelpfulnessRate = feedbackLogs.Count > 0
+                ? (float)Math.Round((double)dashboard.AiSuggestionsHelpful / feedbackLogs.Count * 100, 2)
+                : 0;
+
+            dashboard.AiSourceStats = aiLogs
+                .GroupBy(x => string.IsNullOrWhiteSpace(x.Source) ? "unknown" : x.Source)
+                .Select(g => new AiSourceStatDTO
+                {
+                    Source = g.Key,
+                    Count = g.Count()
+                })
+                .OrderByDescending(x => x.Count)
+                .ToList();
+
+            dashboard.AiSuggestionTrends = Enumerable.Range(0, safeDays)
+                .Select(i =>
+                {
+                    var date = periodStart.Date.AddDays(i);
+                    var generated = aiLogs.Count(x => x.CreatedAt.Date == date);
+                    var accepted = aiLogs.Count(x => x.AcceptedAt.HasValue && x.AcceptedAt.Value.Date == date);
+
+                    return new AiSuggestionTrendDTO
+                    {
+                        Date = date,
+                        GeneratedCount = generated,
+                        AcceptedCount = accepted
+                    };
+                })
+                .ToList();
+
+            // Product stats scoped to selected period/agent filter.
+            dashboard.ProductStats = periodTickets
+                .GroupBy(t => new { t.ProductId, t.ProductName })
+                .Select(g => new ProductStatDTO
+                {
+                    ProductId = g.Key.ProductId ?? Guid.Empty,
+                    ProductName = string.IsNullOrWhiteSpace(g.Key.ProductName) ? "Khong xac dinh" : g.Key.ProductName,
+                    TotalTickets = g.Count(),
+                    OpenTickets = g.Count(t => t.Status == Status.Open),
+                    PositiveSentimentPercentage = g.Count() > 0
+                        ? (float)g.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "positive") / g.Count() * 100
+                        : 0,
+                    NegativeSentimentPercentage = g.Count() > 0
+                        ? (float)g.Count(t => !string.IsNullOrEmpty(t.SentimentLabel) && t.SentimentLabel == "negative") / g.Count() * 100
+                        : 0
+                })
+                .OrderByDescending(x => x.TotalTickets)
+                .ToList();
 
             // Agent performance stats
             // Get all unique agents (users who have assigned tickets)
-            var agentIds = allTickets
+            var agentIds = periodTickets
                 .Where(t => t.AssignedToId.HasValue)
                 .Select(t => t.AssignedToId.Value)
                 .Distinct()
@@ -941,41 +1006,50 @@ namespace SmartHelpdesk.Services
                 .Where(u => agentIds.Contains(u.Id))
                 .ToListAsync();
 
+            if (agentId.HasValue && agents.Count == 0)
+            {
+                var agent = await _context.Users.FirstOrDefaultAsync(u => u.Id == agentId.Value);
+                if (agent != null)
+                {
+                    agents = new List<User> { agent };
+                }
+            }
+
             dashboard.AgentStats = agents.Select(agent => new AgentPerformanceDTO
             {
                 AgentId = agent.Id,
                 AgentName = $"{(agent.Name ?? "").Trim()} {(agent.Surname ?? "").Trim()}".Trim(),
-                AssignedTickets = allTickets.Count(t => t.AssignedToId == agent.Id),
-                ClosedTickets = allTickets.Count(t => t.AssignedToId == agent.Id && t.Status == Status.Closed),
-                OpenTickets = allTickets.Count(t => t.AssignedToId == agent.Id && t.Status == Status.Open),
-                AverageResolutionTimeHours = (float)allTickets
+                AssignedTickets = periodTickets.Count(t => t.AssignedToId == agent.Id),
+                ClosedTickets = periodTickets.Count(t => t.AssignedToId == agent.Id && t.Status == Status.Closed),
+                OpenTickets = periodTickets.Count(t => t.AssignedToId == agent.Id && t.Status == Status.Open),
+                AverageResolutionTimeHours = (float)periodTickets
                     .Where(t => t.AssignedToId == agent.Id && t.ClosedAt.HasValue)
                     .Select(t => (t.ClosedAt!.Value - t.CreatedAt).TotalHours)
                     .DefaultIfEmpty(0)
                     .Average(),
-                AverageCsatRating = (float)allTickets
+                AverageCsatRating = (float)periodTickets
                     .Where(t => t.AssignedToId == agent.Id && t.Feedback != null)
                     .Select(t => t.Feedback!.Rating)
                     .DefaultIfEmpty(0)
                     .Average(),
-                CustomerSatisfactionPercentage = (float)(allTickets
+                CustomerSatisfactionPercentage = (float)(periodTickets
                     .Where(t => t.AssignedToId == agent.Id && t.Feedback != null)
                     .Select(t => t.Feedback!.Rating)
                     .DefaultIfEmpty(0)
                     .Average() * 20.0)
             }).ToList();
 
-            // Ticket trends (last 30 days)
+            // Ticket trends (selected range)
             var today = DateTimeOffset.Now.Date;
-            var thirtyDaysAgo = today.AddDays(-30);
+            var trendStartDate = today.AddDays(-safeDays + 1);
 
-            dashboard.TicketTrends = Enumerable.Range(0, 30)
+            dashboard.TicketTrends = Enumerable.Range(0, safeDays)
                 .Select(i => 
                 {
-                    var date = thirtyDaysAgo.AddDays(i);
-                    var ticketsOnDate = allTickets.Where(t => t.CreatedAt.Date == date).ToList();
-                    var closedOnDate = allTickets.Where(t => t.ClosedAt?.Date == date).ToList();
-                    var totalOpenOnDate = allTickets.Count(t => 
+                    var date = trendStartDate.AddDays(i);
+                    var ticketsOnDate = periodTickets.Where(t => t.CreatedAt.Date == date).ToList();
+                    var closedOnDate = periodTickets.Where(t => t.ClosedAt?.Date == date).ToList();
+                    var totalOpenOnDate = periodTickets.Count(t => 
                         t.CreatedAt.Date <= date && 
                         (t.Status != Status.Closed || t.ClosedAt?.Date > date));
 

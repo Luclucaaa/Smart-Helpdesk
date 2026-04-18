@@ -746,11 +746,11 @@ namespace SmartHelpdesk.Controllers
         /// </summary>
         [HttpGet("AdminDashboard")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAdminDashboard()
+        public async Task<IActionResult> GetAdminDashboard([FromQuery] int days = 30, [FromQuery] Guid? agentId = null)
         {
             try
             {
-                var dashboard = await _ticketsService.GetAdminDashboard();
+                var dashboard = await _ticketsService.GetAdminDashboard(days, agentId);
                 return Ok(dashboard);
             }
             catch (Exception ex)
